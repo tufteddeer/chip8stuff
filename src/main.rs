@@ -419,8 +419,8 @@ fn execute_instruction(
 
             let carry = result > u8::MAX as u16;
 
-            registers[0xF] = if carry { 0x01 } else { 0x00 };
             registers[register_x as usize] = result as u8;
+            registers[0xF] = if carry { 0x01 } else { 0x00 };
         }
         Instruction::SubRegisters {
             register_x,
