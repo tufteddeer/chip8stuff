@@ -43,6 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     let path = "./roms/timendus-test-suite/2-ibm-logo.ch8";
     //let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
+    let path = "./roms/timendus-test-suite/3-corax+.ch8";
 
     let mut memory = [0_u8; 4096];
     let mut registers = [0_u8; 16];
@@ -242,10 +243,19 @@ enum Instruction {
         register_x: u8,
         register_y: u8,
     },
+    //8XY7
+    SubRegistersOtherWayArround {
+        register_x: u8,
+        register_y: u8,
+    },
     //9XY0
     SkipIfRegistersNeq {
         register_x: u8,
         register_y: u8,
+    },
+    //FX1E
+    AddXtoI {
+        register_x: u8,
     },
     //FX33
     BinaryCodedDecimal {
@@ -471,6 +481,23 @@ fn execute_instruction(
             memory[*address_register as usize + 1] = ten;
             memory[*address_register as usize + 2] = one;
         }
+        Instruction::SubRegistersOtherWayArround {
+            register_x,
+            register_y,
+        } => {
+            let (result, borrow) = u8::borrowing_sub(
+                registers[register_y as usize],
+                registers[register_x as usize],
+                true,
+            );
+
+            registers[register_x as usize] = result;
+
+            registers[0xF] = if borrow { 0x00 } else { 0x01 };
+        }
+        Instruction::AddXtoI { register_x } => {
+            *address_register += registers[register_x as usize] as u16;
+        }
     }
 }
 
@@ -564,6 +591,10 @@ fn read_instruction(memory: &[u8], pc: u16) -> Instruction {
             register_x: b,
             register_y: c,
         },
+        (0x8, _, _, 0x7) => Instruction::SubRegistersOtherWayArround {
+            register_x: b,
+            register_y: c,
+        },
         (0x8, _, _, 0xE) => Instruction::LeftShiftRegister {
             register_x: b,
             register_y: c,
@@ -580,6 +611,7 @@ fn read_instruction(memory: &[u8], pc: u16) -> Instruction {
             register_y: c,
             len: d,
         },
+        (0xF, _, 0x1, 0xE) => Instruction::AddXtoI { register_x: b },
         (0xF, _, 0x5, 0x5) => Instruction::StoreRegisters { register_x: b },
         (0xF, _, 0x6, 0x5) => Instruction::LoadRegisters { register_x: b },
         (0xF, _, 0x3, 0x3) => Instruction::BinaryCodedDecimal { register_x: b },
