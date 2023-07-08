@@ -115,7 +115,7 @@ fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
 
     for vram_y in 0..DISPLAY_HEIGHT {
         for vram_x in 0..DISPLAY_WIDTH {
-            let color = if vram[vram_index(vram_x, vram_y)] == 1 {
+            let color = if vram[vram_index(vram_x, vram_y).unwrap()] == 1 {
                 OFF
             } else {
                 ON
@@ -144,7 +144,7 @@ fn print_vram(vram: &[u8]) {
 
     for y in 0..DISPLAY_HEIGHT {
         for x in 0..DISPLAY_WIDTH {
-            if vram[vram_index(x, y)] == 1 {
+            if vram[vram_index(x, y).unwrap()] == 1 {
                 print!("□");
             } else {
                 print!("■");
@@ -309,8 +309,16 @@ fn execute_instruction(
             let start_x: u16 = registers[register_x as usize] as u16;
             let start_y: u16 = registers[register_y as usize] as u16;
 
-            let start_x = if start_x > 0x3F {start_x % DISPLAY_WIDTH} else {start_x};
-            let start_y = if start_y > 0x1F {start_y % DISPLAY_HEIGHT} else {start_y};
+            let start_x = if start_x > 0x3F {
+                start_x % DISPLAY_WIDTH
+            } else {
+                start_x
+            };
+            let start_y = if start_y > 0x1F {
+                start_y % DISPLAY_HEIGHT
+            } else {
+                start_y
+            };
 
             println!("drawing {len} bytes at {start_x},{start_y}");
 
@@ -332,14 +340,16 @@ fn execute_instruction(
                     } else {
                         0
                     };
-                    let old_pixel = get_pixel(vram, x, y);
 
-                    let mut color = sprite_pixel;
-                    if old_pixel == 1 && sprite_pixel == 1 {
-                        registers[0xF] = 0x01;
-                        color = 0;
+                    if let Some(old_pixel) = get_pixel(vram, x, y) {
+                        let mut color = sprite_pixel;
+                        if old_pixel == 1 && sprite_pixel == 1 {
+                            registers[0xF] = 0x01;
+                            color = 0;
+                        }
+                        set_pixel(vram, x, y, color == 1);
                     }
-                    set_pixel(vram, x, y, color == 1);
+
                     x += 1;
                 }
 
@@ -502,19 +512,28 @@ fn execute_instruction(
     }
 }
 
-fn vram_index(x: u16, y: u16) -> usize {
-    (DISPLAY_WIDTH * y + x) as usize
+/// Convert x and y coordinates to a linear index
+/// Returns [None] when the coordinate is outside the screen bounds
+fn vram_index(x: u16, y: u16) -> Option<usize> {
+    if x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT {
+        None
+    } else {
+        Some((DISPLAY_WIDTH * y + x) as usize)
+    }
 }
 
+/// Set the pixel at the given coordinates
+/// Does nothing if the coordinate is outside the screen bounds
 fn set_pixel(vram: &mut [u8], x: u16, y: u16, pixel: bool) {
-    let index = vram_index(x, y);
-    vram[index] = if pixel { 1 } else { 0 };
+    if let Some(index) = vram_index(x, y) {
+        vram[index] = if pixel { 1 } else { 0 };
+    }
 }
 
-fn get_pixel(vram: &[u8], x: u16, y: u16) -> u8 {
-    let index = vram_index(x, y);
-
-    vram[index]
+/// Get the pixel color at the given coordinates
+/// Returns [None] when the coordinate is outside the screen bounds
+fn get_pixel(vram: &[u8], x: u16, y: u16) -> Option<u8> {
+    vram_index(x, y).map(|index| vram[index])
 }
 
 fn read_instruction(memory: &[u8], pc: u16) -> Instruction {
@@ -646,6 +665,8 @@ mod tests {
         let x = 30;
         let y = 10;
 
-        assert_eq!(vram_index(x, y), 670)
+        assert_eq!(vram_index(x, y), Some(670));
+
+        assert_eq!(vram_index(70, 100), None);
     }
 }
