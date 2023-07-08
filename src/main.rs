@@ -85,8 +85,8 @@ fn main() -> anyhow::Result<()> {
 /// Render the CHIP8 vram to the Pixels framebuffer
 fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
     const ALPHA: u8 = 0xFF;
-    const ON: u8 = 0xFF;
-    const OFF: u8 = 0x00;
+    const ON: [u8; 4] = [0x66, 0x66, 0x99, ALPHA];
+    const OFF: [u8; 4] = [0x29, 0x29, 0x3d, ALPHA];
 
     let frame = pixels.frame_mut();
 
@@ -105,10 +105,10 @@ fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
                     let frame_y = vram_y as u32 * DISPLAY_WINDOW_SCALE + y;
 
                     let i = (frame_x as usize + WINDOW_WIDTH as usize * frame_y as usize) * 4;
-                    frame[i] = color;
-                    frame[i + 1] = color;
-                    frame[i + 2] = color;
-                    frame[i + 3] = ALPHA;
+                    frame[i] = color[0];
+                    frame[i + 1] = color[1];
+                    frame[i + 2] = color[2];
+                    frame[i + 3] = color[3];
                 }
             }
         }
