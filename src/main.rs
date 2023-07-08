@@ -456,7 +456,7 @@ fn execute_instruction(
             let vf_temp = value & 0b10000000;
 
             registers[register_x as usize] = value << 1;
-            registers[0xF] = vf_temp;
+            registers[0xF] = if vf_temp == 0b10000000 { 1 } else { 0 };
         }
         Instruction::RightShiftRegister {
             register_x,
@@ -466,7 +466,7 @@ fn execute_instruction(
             let vf_temp = value & 0b00000001;
 
             registers[register_x as usize] = value >> 1;
-            registers[0xF] = vf_temp;
+            registers[0xF] = if vf_temp == 0b00000001 { 1 } else { 0 };
         }
         Instruction::StoreRegisters { register_x } => {
             for i in 0..=register_x as usize {
