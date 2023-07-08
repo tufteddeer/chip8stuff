@@ -311,7 +311,7 @@ fn execute_instruction(
             registers[0xF] = 0x00;
 
             for row in sprite {
-                for i in 0..8 {
+                for i in (0..8).rev() {
                     let sprite_pixel = if row & 2_u8.pow(i) == 2_u8.pow(i) {
                         1
                     } else {
