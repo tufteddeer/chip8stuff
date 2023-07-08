@@ -14,8 +14,15 @@
           inherit system overlays;
         };
 
-        naersk' = pkgs.callPackage naersk { };
+        toolchain = pkgs.rust-bin.selectLatestNightlyWith
+          (toolchain: toolchain.default.override {
+            extensions = [ "rust-src" ];
+          });
 
+        naersk' = pkgs.callPackage naersk {
+          cargo = toolchain;
+          rustc = toolchain;
+        };
       in
       rec {
         # For `nix build` & `nix run`:
@@ -26,9 +33,7 @@
         # For `nix develop` (optional, can be skipped):
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            (rust-bin.stable.latest.default.override {
-              extensions = [ "rust-src" "rust-analyzer" ];
-            })
+            toolchain
           ];
         };
       }
