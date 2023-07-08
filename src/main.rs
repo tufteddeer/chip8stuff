@@ -368,7 +368,7 @@ fn execute_instruction(
             }
         }
         Instruction::AddToRegister { register, value } => {
-            (registers[register as usize], _) = registers[register as usize].overflowing_add(value);
+            registers[register as usize] = registers[register as usize].wrapping_add(value);
         }
         Instruction::SkipIfRegistersNeq {
             register_x,
@@ -414,28 +414,38 @@ fn execute_instruction(
             register_x,
             register_y,
         } => {
-            let (result, carry) = u8::carrying_add(
-                registers[register_x as usize],
-                registers[register_y as usize],
-                true,
-            );
+            let result: u16 =
+                registers[register_x as usize] as u16 + registers[register_y as usize] as u16;
 
-            registers[register_x as usize] = result;
+            let carry = result > u8::MAX as u16;
 
             registers[0xF] = if carry { 0x01 } else { 0x00 };
+            registers[register_x as usize] = result as u8;
         }
         Instruction::SubRegisters {
             register_x,
             register_y,
         } => {
-            let (result, borrow) = u8::borrowing_sub(
-                registers[register_x as usize],
-                registers[register_y as usize],
-                true,
-            );
+            let x = registers[register_x as usize];
+            let y = registers[register_y as usize];
+            let result = x - y;
 
             registers[register_x as usize] = result;
 
+            let borrow = y > x;
+            registers[0xF] = if borrow { 0x00 } else { 0x01 };
+        }
+        Instruction::SubRegistersOtherWayArround {
+            register_x,
+            register_y,
+        } => {
+            let x = registers[register_x as usize];
+            let y = registers[register_y as usize];
+            let result = y - x;
+
+            registers[register_x as usize] = result;
+
+            let borrow = x > y;
             registers[0xF] = if borrow { 0x00 } else { 0x01 };
         }
         Instruction::LeftShiftRegister {
@@ -480,20 +490,6 @@ fn execute_instruction(
             memory[*address_register as usize] = hundred;
             memory[*address_register as usize + 1] = ten;
             memory[*address_register as usize + 2] = one;
-        }
-        Instruction::SubRegistersOtherWayArround {
-            register_x,
-            register_y,
-        } => {
-            let (result, borrow) = u8::borrowing_sub(
-                registers[register_y as usize],
-                registers[register_x as usize],
-                true,
-            );
-
-            registers[register_x as usize] = result;
-
-            registers[0xF] = if borrow { 0x00 } else { 0x01 };
         }
         Instruction::AddXtoI { register_x } => {
             *address_register += registers[register_x as usize] as u16;
