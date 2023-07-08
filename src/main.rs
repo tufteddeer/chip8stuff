@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use clap::Parser;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
@@ -22,7 +23,27 @@ const DISPLAY_WINDOW_SCALE: u32 = 10;
 const WINDOW_WIDTH: u32 = DISPLAY_WIDTH as u32 * 10;
 const WINDOW_HEIGHT: u32 = DISPLAY_HEIGHT as u32 * 10;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    rom_file: String,
+}
+
 fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+
+    let mut memory = [0_u8; 4096];
+    let mut registers = [0_u8; 16];
+    let mut pc: u16 = PC_INIT;
+    let mut address_register: u16 = 0;
+    let mut vram = [0_u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize];
+
+    let mut stack: Vec<u16> = Vec::new();
+
+    let mut cycle_counter = 0;
+
+    load_rom(&mut memory, args.rom_file)?;
+
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
@@ -40,22 +61,6 @@ fn main() -> anyhow::Result<()> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
     };
-
-    let path = "./roms/timendus-test-suite/2-ibm-logo.ch8";
-    //let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
-    let path = "./roms/timendus-test-suite/3-corax+.ch8";
-
-    let mut memory = [0_u8; 4096];
-    let mut registers = [0_u8; 16];
-    let mut pc: u16 = PC_INIT;
-    let mut address_register: u16 = 0;
-    let mut vram = [0_u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize];
-
-    let mut stack: Vec<u16> = Vec::new();
-
-    load_rom(&mut memory, path)?;
-
-    let mut cycle_counter = 0;
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame

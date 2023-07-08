@@ -10,3 +10,4 @@ anyhow = "1.0.69"
 pixels = "0.13.0"
 winit = "0.28.6"
 winit_input_helper = "0.14.1"
+clap = { version = "4.3.11", features = ["derive"] }
