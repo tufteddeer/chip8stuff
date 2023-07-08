@@ -286,9 +286,7 @@ impl Instruction {
     ) {
         match self {
             Instruction::Clear => {
-                for pixel in vram {
-                    *pixel = 0;
-                }
+                vram.fill(0);
             }
 
             Instruction::JumpToAddress { address } => {
