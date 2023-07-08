@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     let path = "./roms/timendus-test-suite/2-ibm-logo.ch8";
     //let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
-    let path = "./roms/timendus-test-suite/4-flags.ch8";
+    let path = "./roms/timendus-test-suite/3-corax+.ch8";
 
     let mut memory = [0_u8; 4096];
     let mut registers = [0_u8; 16];
@@ -309,6 +309,9 @@ fn execute_instruction(
             let start_x: u16 = registers[register_x as usize] as u16;
             let start_y: u16 = registers[register_y as usize] as u16;
 
+            let start_x = if start_x > 0x3F {start_x % DISPLAY_WIDTH} else {start_x};
+            let start_y = if start_y > 0x1F {start_y % DISPLAY_HEIGHT} else {start_y};
+
             println!("drawing {len} bytes at {start_x},{start_y}");
 
             let mut x = start_x;
@@ -504,17 +507,11 @@ fn vram_index(x: u16, y: u16) -> usize {
 }
 
 fn set_pixel(vram: &mut [u8], x: u16, y: u16, pixel: bool) {
-    let x = x % DISPLAY_WIDTH;
-    let y = y % DISPLAY_HEIGHT;
-
     let index = vram_index(x, y);
     vram[index] = if pixel { 1 } else { 0 };
 }
 
 fn get_pixel(vram: &[u8], x: u16, y: u16) -> u8 {
-    let x = x % DISPLAY_WIDTH;
-    let y = y % DISPLAY_HEIGHT;
-
     let index = vram_index(x, y);
 
     vram[index]
