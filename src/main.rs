@@ -41,7 +41,8 @@ fn main() -> anyhow::Result<()> {
         Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
     };
 
-    let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
+    let path = "./roms/timendus-test-suite/2-ibm-logo.ch8";
+    //let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
 
     let mut memory = [0_u8; 4096];
     let mut registers = [0_u8; 16];
@@ -58,7 +59,6 @@ fn main() -> anyhow::Result<()> {
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            
             let instruction = read_instruction(&memory, pc);
             pc += 2; // as long as there are no relative jumps, this should be ok
             execute_instruction(
@@ -308,6 +308,8 @@ fn execute_instruction(
             let hi = lo + len as usize;
             let sprite = &memory[lo..hi];
 
+            assert_eq!(sprite.len(), len as usize);
+
             registers[0xF] = 0x00;
 
             for row in sprite {
@@ -318,14 +320,11 @@ fn execute_instruction(
                         0
                     };
                     let old_pixel = get_pixel(vram, x, y);
-                    let color = old_pixel ^ sprite_pixel;
 
-                    println!(
-                        "sprite pixel: {sprite_pixel}, old pixel: {old_pixel}, new value: {color}"
-                    );
-
-                    if old_pixel != color {
+                    let mut color = sprite_pixel;
+                    if old_pixel == 1 && sprite_pixel == 1 {
                         registers[0xF] = 0x01;
+                        color = 0;
                     }
                     set_pixel(vram, x, y, color == 1);
                     x += 1;
@@ -480,7 +479,6 @@ fn vram_index(x: u16, y: u16) -> usize {
 }
 
 fn set_pixel(vram: &mut [u8], x: u16, y: u16, pixel: bool) {
-    println!("setting pixel {x},{y}: {pixel}");
     let x = x % DISPLAY_WIDTH;
     let y = y % DISPLAY_HEIGHT;
 
