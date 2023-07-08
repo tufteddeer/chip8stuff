@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     let path = "./roms/timendus-test-suite/2-ibm-logo.ch8";
     //let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
-    let path = "./roms/timendus-test-suite/3-corax+.ch8";
+    let path = "./roms/timendus-test-suite/4-flags.ch8";
 
     let mut memory = [0_u8; 4096];
     let mut registers = [0_u8; 16];
@@ -453,18 +453,20 @@ fn execute_instruction(
             register_y,
         } => {
             let value = registers[register_y as usize];
-            registers[0xF] = value & 0b10000000;
+            let vf_temp = value & 0b10000000;
 
             registers[register_x as usize] = value << 1;
+            registers[0xF] = vf_temp;
         }
         Instruction::RightShiftRegister {
             register_x,
             register_y,
         } => {
             let value = registers[register_y as usize];
-            registers[0xF] = value & 0b00000001;
+            let vf_temp = value & 0b00000001;
 
             registers[register_x as usize] = value >> 1;
+            registers[0xF] = vf_temp;
         }
         Instruction::StoreRegisters { register_x } => {
             for i in 0..=register_x as usize {
