@@ -23,19 +23,48 @@
           cargo = toolchain;
           rustc = toolchain;
         };
+
+        buildInputs = with pkgs; [
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libXrandr
+          xorg.libXi
+
+          vulkan-loader
+
+          makeWrapper
+        ];
       in
       rec {
         # For `nix build` & `nix run`:
-        defaultPackage = naersk'.buildPackage {
-          src = ./.;
-        };
+        defaultPackage = naersk'.buildPackage
+          {
+            src = ./.;
+            nativeBuildInputs = with pkgs; [
+              xorg.libX11
+            ];
+
+            buildInputs = buildInputs;
+
+            # to prevent missing .so files when executing the file normally (without 'nix run') (see https://github.com/Anton-4/winit_nix/blob/main/flake.nix)
+            postInstall = ''
+              wrapProgram $out/bin/chip8stuff --set LD_LIBRARY_PATH "${pkgs.lib.makeLibraryPath buildInputs}"
+            '';
+
+            # LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath buildInputs}";
+          };
 
         # For `nix develop` (optional, can be skipped):
-        devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
-            toolchain
-          ];
-        };
+        devShell = pkgs.mkShell
+          {
+            nativeBuildInputs = with pkgs; [
+              toolchain
+            ];
+
+            buildInputs = buildInputs;
+
+            LD_LIBRARY_PATH = "${nixpkgs.lib.makeLibraryPath buildInputs}";
+          };
       }
     );
 }

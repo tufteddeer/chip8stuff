@@ -2,13 +2,45 @@
 
 use std::path::Path;
 
+use pixels::{Error, Pixels, SurfaceTexture};
+use winit::{
+    dpi::LogicalSize,
+    event::{Event, VirtualKeyCode},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
+use winit_input_helper::WinitInputHelper;
+
 /// Initital program counter value and the offset at which the rom is loaded into memory
 const PC_INIT: u16 = 0x200;
 
 const DISPLAY_WIDTH: u16 = 64;
 const DISPLAY_HEIGHT: u16 = 32;
 
+// How many pixel we display per vram pixel
+const DISPLAY_WINDOW_SCALE: u32 = 10;
+const WINDOW_WIDTH: u32 = DISPLAY_WIDTH as u32 * 10;
+const WINDOW_HEIGHT: u32 = DISPLAY_HEIGHT as u32 * 10;
+
 fn main() -> anyhow::Result<()> {
+    let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
+    let window = {
+        let size = LogicalSize::new(WINDOW_WIDTH as f64, WINDOW_HEIGHT as f64);
+        WindowBuilder::new()
+            .with_title("CHIP8")
+            .with_inner_size(size)
+            .with_min_inner_size(size)
+            .build(&event_loop)
+            .unwrap()
+    };
+
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
+    };
+
     let path = "./roms/timendus-test-suite/1-chip8-logo.ch8";
 
     let mut memory = [0_u8; 4096];
@@ -22,28 +54,91 @@ fn main() -> anyhow::Result<()> {
     load_rom(&mut memory, path)?;
 
     let mut cycle_counter = 0;
-    loop {
-        let instruction = read_instruction(&memory, pc);
-        pc += 2; // as long as there are no relative jumps, this should be ok
-        execute_instruction(
-            instruction,
-            &mut memory,
-            &mut registers,
-            &mut pc,
-            &mut address_register,
-            &mut vram,
-            &mut stack,
-        );
 
-        println!("registers: {registers:X?}");
+    event_loop.run(move |event, _, control_flow| {
+        // Draw the current frame
+        if let Event::RedrawRequested(_) = event {
+            
+            let instruction = read_instruction(&memory, pc);
+            pc += 2; // as long as there are no relative jumps, this should be ok
+            execute_instruction(
+                instruction,
+                &mut memory,
+                &mut registers,
+                &mut pc,
+                &mut address_register,
+                &mut vram,
+                &mut stack,
+            );
 
-        cycle_counter += 1;
-        println!("cycles: {cycle_counter}")
-    }
+            println!("registers: {registers:X?}");
+
+            cycle_counter += 1;
+            println!("cycles: {cycle_counter}");
+
+            render_vram(&vram, &mut pixels).unwrap();
+        }
+
+        // Handle input events
+        if input.update(&event) {
+            // Close events
+            if input.key_pressed(VirtualKeyCode::Escape) || input.close_requested() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            // Resize the window
+            if let Some(size) = input.window_resized() {
+                if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                    println!("{err}");
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+            }
+
+            // Update internal state and request a redraw
+            window.request_redraw();
+        }
+    });
+
     Ok(())
 }
 
-fn draw_vram(vram: &[u8]) {
+/// Render the CHIP8 vram to the Pixels framebuffer
+fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
+    const ALPHA: u8 = 0xFF;
+    const ON: u8 = 0xFF;
+    const OFF: u8 = 0x00;
+
+    let frame = pixels.frame_mut();
+
+    for vram_y in 0..DISPLAY_HEIGHT {
+        for vram_x in 0..DISPLAY_WIDTH {
+            let color = if vram[vram_index(vram_x, vram_y)] == 1 {
+                OFF
+            } else {
+                ON
+            };
+
+            // every vram pixel is scaled up
+            for x in 0..DISPLAY_WINDOW_SCALE {
+                for y in 0..DISPLAY_WINDOW_SCALE {
+                    let frame_x = vram_x as u32 * DISPLAY_WINDOW_SCALE + x;
+                    let frame_y = vram_y as u32 * DISPLAY_WINDOW_SCALE + y;
+
+                    let i = (frame_x as usize + WINDOW_WIDTH as usize * frame_y as usize) * 4;
+                    frame[i] = color;
+                    frame[i + 1] = color;
+                    frame[i + 2] = color;
+                    frame[i + 3] = ALPHA;
+                }
+            }
+        }
+    }
+    pixels.render()
+}
+
+fn print_vram(vram: &[u8]) {
     println!("vram:");
 
     for y in 0..DISPLAY_HEIGHT {
@@ -241,9 +336,9 @@ fn execute_instruction(
             }
 
             println!("Finished drawing. VF: {}", registers[0xF]);
-            draw_vram(vram);
+            print_vram(vram);
 
-            wait_for_input();
+            // wait_for_input();
         }
         Instruction::SkipIfRegisterEqTo { register, value } => {
             if registers[register as usize] == value {
