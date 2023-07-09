@@ -1,10 +1,59 @@
-use std::path::Path;
+use std::{fmt::Display, path::Path};
 
 pub const DISPLAY_WIDTH: u16 = 64;
 pub const DISPLAY_HEIGHT: u16 = 32;
 
 /// Initital program counter value and the offset at which the rom is loaded into memory
 const PC_INIT: usize = 0x200;
+
+#[derive(Default)]
+pub struct Keyboard(u16);
+
+impl Keyboard {
+    pub fn set_down(&mut self, key: u16) {
+        self.0 = self.0 | key
+    }
+
+    pub fn set_up(&mut self, key: u16) {
+        self.0 = self.0 ^ key
+    }
+
+    pub fn is_down(&self, key: u16) -> bool {
+        self.0 & key == key
+    }
+
+    pub fn reset(&mut self) {
+        *self = Keyboard(0);
+    }
+
+    pub fn print(&self) {
+        print!("[");
+        for i in 0..16 {
+            let key = 2_u16.pow(i);
+            print!(" {i:X}: {}", self.is_down(key));
+
+            if i < 15 {
+                print!(",")
+            }
+        }
+        println!(" ]");
+    }
+}
+
+mod test {
+    use super::Keyboard;
+
+    #[test]
+    fn test_keyboard() {
+        let mut kb = Keyboard::default();
+
+        assert_eq!(kb.is_down(0xA), false);
+        kb.set_down(0xA);
+        assert_eq!(kb.is_down(0xA), true);
+        kb.set_up(0xA);
+        assert_eq!(kb.is_down(0xA), false);
+    }
+}
 
 pub struct Chip8 {
     memory: [u8; 4096],
@@ -13,6 +62,7 @@ pub struct Chip8 {
     address_register: u16,
     pub vram: [u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
     stack: Vec<usize>,
+    pub keyboard: Keyboard,
     pub delay_timer: u8,
 }
 
@@ -25,6 +75,7 @@ impl Chip8 {
             address_register: 0,
             vram: [0_u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
             stack: Vec::new(),
+            keyboard: Keyboard::default(),
             delay_timer: 0,
         }
     }
