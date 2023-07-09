@@ -2,6 +2,8 @@
 
 mod chip8;
 
+use std::time::{Duration, Instant};
+
 use chip8::Chip8;
 use clap::Parser;
 use pixels::{Error, Pixels, SurfaceTexture};
@@ -49,12 +51,35 @@ fn main() -> anyhow::Result<()> {
         Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
     };
 
+    const TARGET_FREQUENCY: f32 = 600.0; // hz;
+    let time_per_instruction: Duration = Duration::from_secs_f32(1.0 / TARGET_FREQUENCY);
+
+    let mut delay_timer_decrease_counter = 0;
+
     event_loop.run(move |event, _, control_flow| {
+        let start_time = Instant::now();
+
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             chip8.step_cycle().unwrap();
 
             render_vram(&chip8.vram, &mut pixels).unwrap();
+
+            // wait for some time so we can operate at our target frequency
+            if start_time.elapsed() < time_per_instruction {
+                let time_left = time_per_instruction - start_time.elapsed();
+                if !time_left.is_zero() {
+                    std::thread::sleep(time_left);
+                }
+            }
+
+            // our chip interpreter runs at 600hz, so we decrease the 60hz timer every 10 instructions
+            delay_timer_decrease_counter += 1;
+            if delay_timer_decrease_counter == 10 {
+                println!("decreasing delay timer");
+                chip8.delay_timer = u8::max(0, chip8.delay_timer - 1);
+                delay_timer_decrease_counter = 0;
+            }
         }
 
         // Handle input events

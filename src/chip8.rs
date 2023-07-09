@@ -13,6 +13,7 @@ pub struct Chip8 {
     address_register: u16,
     pub vram: [u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
     stack: Vec<usize>,
+    pub delay_timer: u8,
 }
 
 impl Chip8 {
@@ -24,6 +25,7 @@ impl Chip8 {
             address_register: 0,
             vram: [0_u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
             stack: Vec::new(),
+            delay_timer: 0,
         }
     }
 
@@ -54,6 +56,7 @@ impl Chip8 {
             &mut self.address_register,
             &mut self.vram,
             &mut self.stack,
+            &mut self.delay_timer,
         );
 
         Ok(())
@@ -167,6 +170,14 @@ enum Instruction {
     BinaryCodedDecimal {
         register_x: u8,
     },
+    //FX15
+    SetDelayTimer {
+        register_x: u8,
+    },
+    //FX07
+    ReadDelayTimer {
+        register_x: u8,
+    },
     //FX55
     StoreRegisters {
         register_x: u8,
@@ -265,6 +276,8 @@ impl TryFrom<u16> for Instruction {
                 register_y: c,
                 len: d,
             }),
+            (0xF, _, 0x0, 0x7) => Ok(Instruction::ReadDelayTimer { register_x: b }),
+            (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: b }),
             (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: b }),
             (0xF, _, 0x5, 0x5) => Ok(Instruction::StoreRegisters { register_x: b }),
             (0xF, _, 0x6, 0x5) => Ok(Instruction::LoadRegisters { register_x: b }),
@@ -283,6 +296,7 @@ impl Instruction {
         address_register: &mut u16,
         vram: &mut [u8],
         stack: &mut Vec<usize>,
+        delay_timer: &mut u8,
     ) {
         match self {
             Instruction::Clear => {
@@ -503,6 +517,12 @@ impl Instruction {
             }
             Instruction::AddXtoI { register_x } => {
                 *address_register += registers[register_x as usize] as u16;
+            }
+            Instruction::SetDelayTimer { register_x } => {
+                *delay_timer = registers[register_x as usize];
+            }
+            Instruction::ReadDelayTimer { register_x } => {
+                registers[register_x as usize] = *delay_timer;
             }
         }
     }
