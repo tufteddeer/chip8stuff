@@ -18,6 +18,25 @@ const DISPLAY_WINDOW_SCALE: u32 = 10;
 const WINDOW_WIDTH: u32 = chip8::DISPLAY_WIDTH as u32 * 10;
 const WINDOW_HEIGHT: u32 = chip8::DISPLAY_HEIGHT as u32 * 10;
 
+const KEY_BINDINGS: [VirtualKeyCode; 16] = [
+    VirtualKeyCode::Key0,
+    VirtualKeyCode::Key1,
+    VirtualKeyCode::Key2,
+    VirtualKeyCode::Key3,
+    VirtualKeyCode::Key4,
+    VirtualKeyCode::Key5,
+    VirtualKeyCode::Key6,
+    VirtualKeyCode::Key7,
+    VirtualKeyCode::Key8,
+    VirtualKeyCode::Key9,
+    VirtualKeyCode::A,
+    VirtualKeyCode::B,
+    VirtualKeyCode::C,
+    VirtualKeyCode::D,
+    VirtualKeyCode::E,
+    VirtualKeyCode::F,
+];
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -64,6 +83,18 @@ fn main() -> anyhow::Result<()> {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
+
+            chip8.keyboard.reset();
+
+            let down = KEY_BINDINGS
+                .iter()
+                .enumerate()
+                .filter(|(_, key)| input.key_pressed(**key));
+
+            down.for_each(|(i, _)| {
+                println!("{i}");
+                chip8.keyboard.set_down(2_u16.pow(i as u32))
+            });
 
             // Resize the window
             if let Some(size) = input.window_resized() {
