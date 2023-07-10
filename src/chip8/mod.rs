@@ -1,4 +1,4 @@
-mod instructions;
+pub mod instructions;
 
 use std::path::Path;
 
@@ -68,10 +68,11 @@ mod test {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Mode {
     Running,
     WaitForKey { register: usize },
+    Paused,
 }
 
 pub struct Chip8 {
@@ -401,12 +402,14 @@ impl Chip8 {
         }
     }
 
-    pub fn step_cycle(&mut self) -> anyhow::Result<()> {
+    /// Load and execute the next instruction.
+    /// Returns the instruction.
+    pub fn step_cycle(&mut self) -> anyhow::Result<Instruction> {
         let instruction = self.fetch_and_decode_instruction()?;
 
         self.execute_instruction(instruction);
 
-        Ok(())
+        Ok(instruction)
     }
 }
 

@@ -1,9 +1,11 @@
-use egui::{ClippedPrimitive, Context, TexturesDelta};
+use egui::{ClippedPrimitive, Context, TexturesDelta, Ui};
 use egui_wgpu::{renderer::ScreenDescriptor, wgpu, Renderer};
 
 use pixels::PixelsContext;
 
 use winit::event_loop::EventLoopWindowTarget;
+
+use crate::chip8::{self, Mode};
 
 pub struct EguiFramework {
     // State for egui.
@@ -13,14 +15,16 @@ pub struct EguiFramework {
     renderer: Renderer,
     paint_jobs: Vec<ClippedPrimitive>,
     textures: TexturesDelta,
-
-    // State for the GUI
-    gui: DebugGui,
 }
 
 pub struct DebugGui {
-    /// Only show the egui window when true.
-    window_open: bool,
+    pub show_registers: bool,
+    pub chip8_mode: chip8::Mode,
+    pub registers: [u8; 16],
+    pub set_mode: std::sync::mpsc::Sender<Mode>,
+    pub step_sender: std::sync::mpsc::Sender<()>,
+    pub instruction_history: Vec<chip8::instructions::Instruction>,
+    pub show_instruction_history_window: bool,
 }
 
 impl EguiFramework {
@@ -44,7 +48,6 @@ impl EguiFramework {
         };
         let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
         let textures = TexturesDelta::default();
-        let gui = DebugGui::new();
 
         Self {
             egui_ctx,
@@ -53,7 +56,6 @@ impl EguiFramework {
             renderer,
             paint_jobs: Vec::new(),
             textures,
-            gui,
         }
     }
 
@@ -75,12 +77,12 @@ impl EguiFramework {
     }
 
     /// Prepare egui.
-    pub(crate) fn prepare(&mut self, window: &winit::window::Window) {
+    pub(crate) fn prepare(&mut self, window: &winit::window::Window, model: &mut DebugGui) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx);
+            model.ui(egui_ctx);
         });
 
         self.textures.append(output.textures_delta);
@@ -137,26 +139,62 @@ impl EguiFramework {
 }
 
 impl DebugGui {
-    /// Create a `Gui`.
-    fn new() -> Self {
-        Self { window_open: true }
-    }
-
     /// Create the UI using egui.
     fn ui(&mut self, ctx: &Context) {
-        egui::Window::new("Hello, egui!")
-            .open(&mut self.window_open)
+        egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                self.play_pause_step(ctx, ui);
+
+                if ui.button("Registers").clicked() {
+                    self.show_registers = !self.show_registers;
+                }
+            });
+        });
+
+        self.register_window(ctx);
+
+        self.instruction_history_window(ctx);
+    }
+
+    fn play_pause_step(&mut self, ctx: &Context, ui: &mut Ui) {
+        let (label, new_mode) = match self.chip8_mode {
+            Mode::Running => ("Pause", Mode::Paused),
+            Mode::WaitForKey { register } => ("GETKEY", Mode::WaitForKey { register }),
+            Mode::Paused => ("Play", Mode::Running),
+        };
+
+        if ui.button(label).clicked() {
+            self.set_mode.send(new_mode).unwrap();
+        }
+
+        if self.chip8_mode == Mode::Paused && ui.button("Step").clicked() {
+            self.step_sender.send(()).unwrap();
+        }
+    }
+
+    fn register_window(&mut self, ctx: &Context) {
+        egui::Window::new("Registers")
+            .open(&mut self.show_registers)
             .show(ctx, |ui| {
-                ui.label("This example demonstrates using egui with pixels.");
-                ui.label("Made with 💖 in San Francisco!");
-
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x /= 2.0;
-                    ui.label("Learn more about egui at");
-                    ui.hyperlink("https://docs.rs/egui");
+                egui::Grid::new("register_grid").show(ui, |ui| {
+                    for i in 0..16 {
+                        ui.label(format!("{i:X}:"));
+                        ui.label(format!("{:X}", self.registers[i]));
+                        ui.end_row();
+                    }
                 });
+            });
+    }
+
+    fn instruction_history_window(&mut self, ctx: &Context) {
+        egui::Window::new("Instructions")
+            .open(&mut self.show_instruction_history_window)
+            .scroll2([false, true])
+            .show(ctx, |ui| {
+                for instruction in self.instruction_history.iter().rev().take(20).rev() {
+                    ui.label(format!("{instruction:?}"));
+                    ui.end_row();
+                }
             });
     }
 }

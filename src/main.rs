@@ -22,7 +22,10 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use crate::{chip8::Mode, debug_gui::EguiFramework};
+use crate::{
+    chip8::{instructions::Instruction, Mode},
+    debug_gui::{DebugGui, EguiFramework},
+};
 
 // How many pixel we display per vram pixel
 const DISPLAY_WINDOW_SCALE: u32 = 10;
@@ -71,11 +74,11 @@ fn main() -> anyhow::Result<()> {
         .with_module_level("naga", LevelFilter::Warn)
         // chip8 log targets
         .with_module_level(chip8::LOG_TARGET_INPUT, LevelFilter::Info)
-        .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, LevelFilter::Info)
+        .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, LevelFilter::Trace)
         .with_module_level(chip8::LOG_TARGET_DRAWING, LevelFilter::Info)
         .with_module_level(chip8::LOG_TARGET_TIMER, LevelFilter::Info)
         // interpreter log targets
-        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Trace)
+        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Warn)
         .with_module_level(LOG_TARGET_TIMING, LevelFilter::Warn)
         .with_module_level(LOG_TARGET_WINIT_INPUT, LevelFilter::Warn)
         .init()?;
@@ -127,6 +130,12 @@ fn main() -> anyhow::Result<()> {
     // This avoids frequently redrawing the vram when the window is updated
     let framebuffer = Arc::new(Mutex::new(framebuffer));
 
+    // Some channels to send information between the debugger ui and the chip8 interpreter
+
+    let (new_mode_sender, new_mode_receiver) = std::sync::mpsc::channel();
+    let (step_sender, step_receiver) = std::sync::mpsc::channel::<()>();
+    let (instructions_sender, instructions_receiver) = std::sync::mpsc::channel::<Instruction>();
+
     std::thread::spawn({
         let chip8 = chip8.clone();
         let framebuffer = framebuffer.clone();
@@ -135,8 +144,16 @@ fn main() -> anyhow::Result<()> {
             let mut chip8 = chip8.lock().unwrap();
             chip8.redraw = false;
 
-            if chip8.mode == Mode::Running {
-                chip8.step_cycle().unwrap();
+            if let Ok(new_mode) = new_mode_receiver.try_recv() {
+                chip8.mode = new_mode;
+            }
+
+            if chip8.mode == Mode::Running
+                // if we are paused, wait until the next step is executed via debugger
+                || chip8.mode == Mode::Paused && step_receiver.try_recv().is_ok()
+            {
+                let instruction = chip8.step_cycle().unwrap();
+                instructions_sender.send(instruction).unwrap();
 
                 // decrease the 60hz timer every x instructions, depending on our instruction execution frequency
                 delay_timer_decrease_counter += 1;
@@ -180,6 +197,18 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
+
+    let c = chip8.lock().unwrap();
+    let mut debug_gui = DebugGui {
+        chip8_mode: c.mode,
+        show_registers: false,
+        registers: c.registers,
+        set_mode: new_mode_sender,
+        step_sender,
+        instruction_history: Vec::new(),
+        show_instruction_history_window: true,
+    };
+    drop(c);
 
     event_loop.run(move |event, _, control_flow| {
         // Handle input events
@@ -229,7 +258,18 @@ fn main() -> anyhow::Result<()> {
         // Draw the current frame
         match event {
             Event::RedrawRequested(_) => {
-                framework.prepare(&window);
+                // send instructions executed since the last update to the debugger
+                for instruction in instructions_receiver.try_iter() {
+                    debug_gui.instruction_history.push(instruction);
+                }
+                let chip8 = chip8.lock().unwrap();
+
+                // sync chip8 state to the debugger
+                debug_gui.chip8_mode = chip8.mode;
+                debug_gui.registers = chip8.registers;
+                drop(chip8);
+
+                framework.prepare(&window, &mut debug_gui);
 
                 log::trace!(target: LOG_TARGET_RENDERING, "Rendering window");
 
