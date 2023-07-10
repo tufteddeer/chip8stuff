@@ -1,6 +1,7 @@
 #![feature(bigint_helper_methods)]
 
 mod chip8;
+mod debug_gui;
 
 use std::{
     sync::{Arc, Mutex},
@@ -9,8 +10,9 @@ use std::{
 
 use chip8::Chip8;
 use clap::Parser;
+
 use log::LevelFilter;
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Pixels, SurfaceTexture};
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
@@ -20,7 +22,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use crate::chip8::Mode;
+use crate::{chip8::Mode, debug_gui::EguiFramework};
 
 // How many pixel we display per vram pixel
 const DISPLAY_WINDOW_SCALE: u32 = 10;
@@ -73,7 +75,7 @@ fn main() -> anyhow::Result<()> {
         .with_module_level(chip8::LOG_TARGET_DRAWING, LevelFilter::Info)
         .with_module_level(chip8::LOG_TARGET_TIMER, LevelFilter::Info)
         // interpreter log targets
-        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Warn)
+        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Trace)
         .with_module_level(LOG_TARGET_TIMING, LevelFilter::Warn)
         .with_module_level(LOG_TARGET_WINIT_INPUT, LevelFilter::Warn)
         .init()?;
@@ -104,17 +106,34 @@ fn main() -> anyhow::Result<()> {
         Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
     };
 
+    let mut framework = EguiFramework::new(
+        &event_loop,
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        window.scale_factor() as f32,
+        &pixels,
+    );
+
+    let framebuffer = [0_u8; (WINDOW_WIDTH * WINDOW_HEIGHT) as usize * 4];
+
     let time_per_instruction: Duration = Duration::from_secs_f32(1.0 / TARGET_FREQUENCY);
 
     let mut delay_timer_decrease_counter = 0;
 
     let chip8 = Arc::new(Mutex::new(chip8));
 
+    // Framebuffer caches the scaled up vram pixels as they should be rendered.
+    // it is copied into the Pixels framebuffer before rendering.
+    // This avoids frequently redrawing the vram when the window is updated
+    let framebuffer = Arc::new(Mutex::new(framebuffer));
+
     std::thread::spawn({
         let chip8 = chip8.clone();
+        let framebuffer = framebuffer.clone();
         move || loop {
             let last_cycle_finished = Instant::now();
             let mut chip8 = chip8.lock().unwrap();
+            chip8.redraw = false;
 
             if chip8.mode == Mode::Running {
                 chip8.step_cycle().unwrap();
@@ -131,7 +150,9 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 if chip8.redraw {
-                    window.request_redraw();
+                    println!("rendering into framebuffer");
+                    let mut f = framebuffer.lock().unwrap();
+                    render_vram(&chip8.vram, &mut *f);
                 }
                 chip8.redraw = false;
             }
@@ -161,14 +182,6 @@ fn main() -> anyhow::Result<()> {
     });
 
     event_loop.run(move |event, _, control_flow| {
-        let mut chip8 = chip8.lock().unwrap();
-
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
-            log::trace!(target: LOG_TARGET_RENDERING, "Rendering window");
-            render_vram(&chip8.vram, &mut pixels).unwrap();
-        }
-
         // Handle input events
         if input.update(&event) {
             // Close events
@@ -178,6 +191,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             KEY_BINDINGS.iter().enumerate().for_each(|(i, key)| {
+                let mut chip8 = chip8.lock().unwrap();
+
                 if input.key_pressed(*key) {
                     chip8.keyboard.set_down(i as u8);
 
@@ -194,13 +209,50 @@ fn main() -> anyhow::Result<()> {
                 }
             });
 
+            // Update the scale factor
+            if let Some(scale_factor) = input.scale_factor() {
+                framework.scale_factor(scale_factor);
+            }
+
             // Resize the window
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
                     log::error!("{err}");
                     *control_flow = ControlFlow::Exit;
                 }
+                framework.resize(size.width, size.height);
             }
+
+            window.request_redraw();
+        }
+
+        // Draw the current frame
+        match event {
+            Event::RedrawRequested(_) => {
+                framework.prepare(&window);
+
+                log::trace!(target: LOG_TARGET_RENDERING, "Rendering window");
+
+                let f = framebuffer.lock().unwrap();
+                pixels.frame_mut().copy_from_slice(&*f);
+                drop(f);
+                // Render everything together
+                pixels
+                    .render_with(|encoder, render_target, context| {
+                        // Render the world texture
+                        context.scaling_renderer.render(encoder, render_target);
+
+                        // Render egui
+                        framework.render(encoder, render_target, context);
+
+                        Ok(())
+                    })
+                    .unwrap();
+            }
+            Event::WindowEvent { window_id, event } => {
+                framework.handle_event(&event);
+            }
+            _ => {}
         }
     });
 
@@ -208,12 +260,10 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Render the CHIP8 vram to the Pixels framebuffer
-fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
+fn render_vram(vram: &[u8], frame: &mut [u8]) {
     const ALPHA: u8 = 0xFF;
     const ON: [u8; 4] = [0x66, 0x66, 0x99, ALPHA];
     const OFF: [u8; 4] = [0x29, 0x29, 0x3d, ALPHA];
-
-    let frame = pixels.frame_mut();
 
     for vram_y in 0..chip8::DISPLAY_HEIGHT {
         for vram_x in 0..chip8::DISPLAY_WIDTH {
@@ -238,7 +288,6 @@ fn render_vram(vram: &[u8], pixels: &mut Pixels) -> Result<(), Error> {
             }
         }
     }
-    pixels.render()
 }
 
 fn wait_for_input() {
