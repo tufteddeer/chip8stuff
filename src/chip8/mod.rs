@@ -386,6 +386,9 @@ impl Chip8 {
                     register: register_x,
                 };
             }
+            Instruction::JumpOffsetV0 { address } => {
+                self.pc = (address + self.registers[0x00] as u16) as usize;
+            }
         }
     }
 

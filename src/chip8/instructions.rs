@@ -21,6 +21,10 @@ pub enum Instruction {
     SetAddressRegister {
         address: u16,
     },
+    //BNNN
+    JumpOffsetV0 {
+        address: u16,
+    },
     //D8B4
     DrawSprite {
         register_x: usize,
@@ -217,6 +221,9 @@ impl TryFrom<u16> for Instruction {
                 register_y: y,
             }),
             (0xA, _, _, _) => Ok(Instruction::SetAddressRegister {
+                address: read_address(value),
+            }),
+            (0xB, _, _, _) => Ok(Instruction::JumpOffsetV0 {
                 address: read_address(value),
             }),
             (0xD, _, _, _) => Ok(Instruction::DrawSprite {
