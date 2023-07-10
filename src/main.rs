@@ -112,16 +112,6 @@ fn main() -> anyhow::Result<()> {
                 return;
             }
 
-            let down = KEY_BINDINGS
-                .iter()
-                .enumerate()
-                .filter(|(_, key)| input.key_pressed(**key));
-
-            down.for_each(|(i, _)| {
-                println!("{i}");
-                chip8.keyboard.set_down(i as u8)
-            });
-
             KEY_BINDINGS.iter().enumerate().for_each(|(i, key)| {
                 if input.key_pressed(*key) {
                     chip8.keyboard.set_down(i as u8);
