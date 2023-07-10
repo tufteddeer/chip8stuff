@@ -264,7 +264,7 @@ impl Chip8 {
                 register_y,
             } => {
                 self.registers[register_x] &= self.registers[register_y];
-                
+
                 // chip 8 quirk (see https://github.com/Timendus/chip8-test-suite/tree/main#the-test)
                 self.registers[0xF] = 0;
             }
@@ -273,7 +273,7 @@ impl Chip8 {
                 register_y,
             } => {
                 self.registers[register_x] ^= self.registers[register_y];
-                
+
                 // chip 8 quirk (see https://github.com/Timendus/chip8-test-suite/tree/main#the-test)
                 self.registers[0xF] = 0;
             }
