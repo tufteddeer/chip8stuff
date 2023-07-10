@@ -64,9 +64,15 @@ mod test {
     }
 }
 
+#[derive(PartialEq, Eq)]
+pub enum Mode {
+    Running,
+    WaitForKey { register: u8 },
+}
+
 pub struct Chip8 {
     memory: [u8; 4096],
-    registers: [u8; 16],
+    pub registers: [u8; 16],
     pc: usize,
     address_register: u16,
     pub vram: [u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
@@ -77,6 +83,7 @@ pub struct Chip8 {
     /// re-rendered. The rendering application has to set this back to false after rendering,
     /// as this does not happen automatically
     pub redraw: bool,
+    pub mode: Mode,
 }
 
 impl Chip8 {
@@ -91,6 +98,7 @@ impl Chip8 {
             keyboard: Keyboard::default(),
             delay_timer: 0,
             redraw: false,
+            mode: Mode::Running,
         }
     }
 
@@ -130,6 +138,7 @@ impl Chip8 {
             &mut self.delay_timer,
             &self.keyboard,
             &mut self.redraw,
+            &mut self.mode,
         );
 
         Ok(())
@@ -259,6 +268,10 @@ enum Instruction {
     ReadDelayTimer {
         register_x: u8,
     },
+    //FX0A
+    WaitForKey {
+        register_x: u8,
+    },
     //FX55
     StoreRegisters {
         register_x: u8,
@@ -358,6 +371,7 @@ impl TryFrom<u16> for Instruction {
             (0xE, _, 0x9, 0xE) => Ok(Instruction::SkipIfKey { register_x: b }),
             (0xE, _, 0xA, 0x1) => Ok(Instruction::SkipIfNotKey { register_x: b }),
             (0xF, _, 0x0, 0x7) => Ok(Instruction::ReadDelayTimer { register_x: b }),
+            (0xF, _, 0x0, 0xA) => Ok(Instruction::WaitForKey { register_x: b }),
             (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: b }),
             (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: b }),
             (0xF, _, 0x5, 0x5) => Ok(Instruction::StoreRegisters { register_x: b }),
@@ -380,6 +394,7 @@ impl Instruction {
         delay_timer: &mut u8,
         keyboard: &Keyboard,
         redraw: &mut bool,
+        mode: &mut Mode,
     ) {
         match self {
             Instruction::Clear => {
@@ -630,6 +645,11 @@ impl Instruction {
                 if !keyboard.is_down(key) {
                     *pc += 2;
                 }
+            }
+            Instruction::WaitForKey { register_x } => {
+                *mode = Mode::WaitForKey {
+                    register: register_x,
+                };
             }
         }
     }

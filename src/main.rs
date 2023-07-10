@@ -20,6 +20,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
+use crate::chip8::Mode;
+
 // How many pixel we display per vram pixel
 const DISPLAY_WINDOW_SCALE: u32 = 10;
 const WINDOW_WIDTH: u32 = chip8::DISPLAY_WIDTH as u32 * 10;
@@ -112,9 +114,27 @@ fn main() -> anyhow::Result<()> {
         let chip8 = chip8.clone();
         move || loop {
             let last_cycle_finished = Instant::now();
-
             let mut chip8 = chip8.lock().unwrap();
-            chip8.step_cycle().unwrap();
+
+            if chip8.mode == Mode::Running {
+                chip8.step_cycle().unwrap();
+
+                // decrease the 60hz timer every x instructions, depending on our instruction execution frequency
+                delay_timer_decrease_counter += 1;
+                if delay_timer_decrease_counter
+                    == (TARGET_FREQUENCY / chip8::DELAY_TIMER_FREQUENCY).floor() as i32
+                {
+                    if chip8.delay_timer > 0 {
+                        chip8.delay_timer -= 1;
+                    }
+                    delay_timer_decrease_counter = 0;
+                }
+
+                if chip8.redraw {
+                    window.request_redraw();
+                }
+                chip8.redraw = false;
+            }
 
             // decrease the 60hz timer every x instructions, depending on our instruction execution frequency
             delay_timer_decrease_counter += 1;
@@ -126,11 +146,6 @@ fn main() -> anyhow::Result<()> {
                 }
                 delay_timer_decrease_counter = 0;
             }
-
-            if chip8.redraw {
-                window.request_redraw();
-            }
-            chip8.redraw = false;
 
             drop(chip8);
 
@@ -165,9 +180,16 @@ fn main() -> anyhow::Result<()> {
             KEY_BINDINGS.iter().enumerate().for_each(|(i, key)| {
                 if input.key_pressed(*key) {
                     chip8.keyboard.set_down(i as u8);
+
                     log::trace!(target: LOG_TARGET_WINIT_INPUT, "key down: 0x{i:X}");
                 } else if input.key_released(*key) {
                     chip8.keyboard.set_up(i as u8);
+
+                    if let Mode::WaitForKey { register } = chip8.mode {
+                        chip8.registers[register as usize] = i as u8;
+                        chip8.mode = Mode::Running;
+                    }
+
                     log::trace!(target: LOG_TARGET_WINIT_INPUT, "key up: 0x{i:X}");
                 }
             });
