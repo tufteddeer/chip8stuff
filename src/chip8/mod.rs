@@ -250,7 +250,7 @@ impl Chip8 {
             } => {
                 self.registers[register_x] = self.registers[register_y];
             }
-            Instruction::Oregisters {
+            Instruction::OrRegisters {
                 register_x,
                 register_y,
             } => {

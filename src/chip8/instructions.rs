@@ -57,7 +57,7 @@ pub enum Instruction {
         register_y: usize,
     },
     //8XY1
-    Oregisters {
+    OrRegisters {
         register_x: usize,
         register_y: usize,
     },
@@ -184,7 +184,7 @@ impl TryFrom<u16> for Instruction {
                 register_x: x,
                 register_y: y,
             }),
-            (0x8, _, _, 0x1) => Ok(Instruction::Oregisters {
+            (0x8, _, _, 0x1) => Ok(Instruction::OrRegisters {
                 register_x: x,
                 register_y: y,
             }),
