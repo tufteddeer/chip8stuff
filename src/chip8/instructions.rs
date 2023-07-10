@@ -1,142 +1,104 @@
 #[derive(Debug)]
 pub enum Instruction {
-    //00E0
+    ///00E0
     Clear,
-    //00EE
+    ///00EE
     Return,
-    //1NNN
-    JumpToAddress {
-        address: u16,
-    },
-    //2NNN
-    ExecuteSubroutine {
-        address: u16,
-    },
-    //6XNN
-    StoreNumberInRegister {
-        number: u8,
-        register: u8,
-    },
-    //ANNN
-    SetAddressRegister {
-        address: u16,
-    },
-    //BNNN
-    JumpOffsetV0 {
-        address: u16,
-    },
-    //D8B4
+    ///1NNN
+    JumpToAddress { address: u16 },
+    ///2NNN
+    ExecuteSubroutine { address: u16 },
+    ///6XNN
+    StoreNumberInRegister { number: u8, register: u8 },
+    ///ANNN
+    SetAddressRegister { address: u16 },
+    ///BNNN
+    JumpOffsetV0 { address: u16 },
+    ///D8B4
     DrawSprite {
         register_x: usize,
         register_y: usize,
         len: u8,
     },
-    //3XNN
-    SkipIfRegisterEqTo {
-        register: u8,
-        value: u8,
-    },
-    //4XNN
-    SkipIfRegisterNeqTo {
-        register: u8,
-        value: u8,
-    },
-    //5XY0
+    ///3XNN
+    SkipIfRegisterEqTo { register: u8, value: u8 },
+    ///4XNN
+    SkipIfRegisterNeqTo { register: u8, value: u8 },
+    ///5XY0
     SkipIfRegistersEq {
         register_x: usize,
         register_y: usize,
     },
-    //7XNN
-    AddToRegister {
-        register: u8,
-        value: u8,
-    },
-    //8XY0
+    ///7XNN
+    AddToRegister { register: u8, value: u8 },
+    ///8XY0
     CopyRegister {
         register_x: usize,
         register_y: usize,
     },
-    //8XY1
+    ///8XY1
     OrRegisters {
         register_x: usize,
         register_y: usize,
     },
-    //8XY2
+    ///8XY2
     AndRegisters {
         register_x: usize,
         register_y: usize,
     },
-    //8XY3
+    ///8XY3
     XorRegisters {
         register_x: usize,
         register_y: usize,
     },
-    //8XY4
+    ///8XY4
     AddRegisters {
         register_x: usize,
         register_y: usize,
     },
-    //8XY5
+    ///8XY5
     SubRegisters {
         register_x: usize,
         register_y: usize,
     },
-    //8XYE
+    ///8XYE
     LeftShiftRegister {
         register_x: usize,
         register_y: usize,
     },
-    //8XY6
+    ///8XY6
     RightShiftRegister {
         register_x: usize,
         register_y: usize,
     },
-    //8XY7
+    ///8XY7
     SubRegistersOtherWayArround {
         register_x: usize,
         register_y: usize,
     },
-    //9XY0
+    ///9XY0
     SkipIfRegistersNeq {
         register_x: usize,
         register_y: usize,
     },
-    //EX9E
-    SkipIfKey {
-        register_x: usize,
-    },
-    //EXA1
-    SkipIfNotKey {
-        register_x: usize,
-    },
-    //FX1E
-    AddXtoI {
-        register_x: usize,
-    },
-    //FX33
-    BinaryCodedDecimal {
-        register_x: usize,
-    },
-    //FX15
-    SetDelayTimer {
-        register_x: usize,
-    },
-    //FX07
-    ReadDelayTimer {
-        register_x: usize,
-    },
-    //FX0A
-    WaitForKey {
-        register_x: usize,
-    },
-    //FX55
-    StoreRegisters {
-        register_x: usize,
-    },
-    //FX65
-    LoadRegisters {
-        register_x: usize,
-    },
+    ///EX9E
+    SkipIfKey { register_x: usize },
+    ///EXA1
+    SkipIfNotKey { register_x: usize },
+    ///FX1E
+    AddXtoI { register_x: usize },
+    ///FX33
+    BinaryCodedDecimal { register_x: usize },
+    ///FX15
+    SetDelayTimer { register_x: usize },
+    ///FX07
+    ReadDelayTimer { register_x: usize },
+    ///FX0A
+    WaitForKey { register_x: usize },
+    ///FX55
+    StoreRegisters { register_x: usize },
+    ///FX65
+    LoadRegisters { register_x: usize },
 }
 
 impl TryFrom<u16> for Instruction {
