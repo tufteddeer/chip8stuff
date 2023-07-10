@@ -125,21 +125,270 @@ impl Chip8 {
         instr
     }
 
+    fn execute_instruction(&mut self, instruction: Instruction) {
+        match instruction {
+            Instruction::Clear => {
+                self.vram.fill(0);
+                self.redraw = true;
+            }
+
+            Instruction::JumpToAddress { address } => {
+                self.pc = address as usize;
+            }
+            Instruction::StoreNumberInRegister { number, register } => {
+                self.registers[register as usize] = number;
+            }
+            Instruction::SetAddressRegister { address } => self.address_register = address,
+            Instruction::DrawSprite {
+                register_x,
+                register_y,
+                len,
+            } => {
+                let start_x: u16 = self.registers[register_x as usize] as u16;
+                let start_y: u16 = self.registers[register_y as usize] as u16;
+
+                let start_x = if start_x > 0x3F {
+                    start_x % DISPLAY_WIDTH
+                } else {
+                    start_x
+                };
+                let start_y = if start_y > 0x1F {
+                    start_y % DISPLAY_HEIGHT
+                } else {
+                    start_y
+                };
+
+                log::trace!(target: LOG_TARGET_DRAWING, "drawing {len} bytes at {start_x},{start_y}");
+
+                let mut x = start_x;
+                let mut y = start_y;
+
+                let lo = self.address_register as usize;
+                let hi = lo + len as usize;
+                let sprite = &self.memory[lo..hi];
+
+                assert_eq!(sprite.len(), len as usize);
+
+                self.registers[0xF] = 0x00;
+
+                for row in sprite {
+                    for i in (0..8).rev() {
+                        let sprite_pixel = if row & 2_u8.pow(i) == 2_u8.pow(i) {
+                            1
+                        } else {
+                            0
+                        };
+
+                        if let Some(old_pixel) = get_pixel(&self.vram, x, y) {
+                            let mut color = sprite_pixel;
+                            if old_pixel == 1 && sprite_pixel == 1 {
+                                self.registers[0xF] = 0x01;
+                                color = 0;
+                            }
+                            set_pixel(&mut self.vram, x, y, color == 1);
+                        }
+
+                        x += 1;
+                    }
+
+                    y += 1;
+                    x = start_x;
+                }
+
+                log::trace!(target:LOG_TARGET_DRAWING, "Finished drawing. VF: {}", self.registers[0xF]);
+                print_vram(&self.vram);
+
+                self.redraw = true;
+
+                // wait_for_input();
+            }
+            Instruction::SkipIfRegisterEqTo { register, value } => {
+                if self.registers[register as usize] == value {
+                    self.pc += 2;
+                }
+            }
+            Instruction::SkipIfRegisterNeqTo { register, value } => {
+                if self.registers[register as usize] != value {
+                    self.pc += 2;
+                }
+            }
+            Instruction::SkipIfRegistersEq {
+                register_x,
+                register_y,
+            } => {
+                if self.registers[register_x as usize] == self.registers[register_y as usize] {
+                    self.pc += 2;
+                }
+            }
+            Instruction::AddToRegister { register, value } => {
+                self.registers[register as usize] =
+                    self.registers[register as usize].wrapping_add(value);
+            }
+            Instruction::SkipIfRegistersNeq {
+                register_x,
+                register_y,
+            } => {
+                if self.registers[register_x as usize] != self.registers[register_y as usize] {
+                    self.pc += 2;
+                }
+            }
+            Instruction::ExecuteSubroutine { address } => {
+                self.stack.push(self.pc);
+                self.pc = address as usize;
+            }
+            Instruction::Return => {
+                let address = self.stack.pop().expect("Can't return when stack is empty");
+                self.pc = address;
+            }
+            Instruction::CopyRegister {
+                register_x,
+                register_y,
+            } => {
+                self.registers[register_x as usize] = self.registers[register_y as usize];
+            }
+            Instruction::OrRegisters {
+                register_x,
+                register_y,
+            } => {
+                self.registers[register_x as usize] |= self.registers[register_y as usize];
+            }
+            Instruction::AndRegisters {
+                register_x,
+                register_y,
+            } => {
+                self.registers[register_x as usize] &= self.registers[register_y as usize];
+            }
+            Instruction::XorRegisters {
+                register_x,
+                register_y,
+            } => {
+                self.registers[register_x as usize] ^= self.registers[register_y as usize];
+            }
+            Instruction::AddRegisters {
+                register_x,
+                register_y,
+            } => {
+                let result: u16 = self.registers[register_x as usize] as u16
+                    + self.registers[register_y as usize] as u16;
+
+                let carry = result > u8::MAX as u16;
+
+                self.registers[register_x as usize] = result as u8;
+                self.registers[0xF] = if carry { 0x01 } else { 0x00 };
+            }
+            Instruction::SubRegisters {
+                register_x,
+                register_y,
+            } => {
+                let x = self.registers[register_x as usize];
+                let y = self.registers[register_y as usize];
+                let result = x - y;
+
+                self.registers[register_x as usize] = result;
+
+                let borrow = y > x;
+                self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
+            }
+            Instruction::SubRegistersOtherWayArround {
+                register_x,
+                register_y,
+            } => {
+                let x = self.registers[register_x as usize];
+                let y = self.registers[register_y as usize];
+                let result = y - x;
+
+                self.registers[register_x as usize] = result;
+
+                let borrow = x > y;
+                self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
+            }
+            Instruction::LeftShiftRegister {
+                register_x,
+                register_y,
+            } => {
+                let value = self.registers[register_y as usize];
+                let vf_temp = value & 0b10000000;
+
+                self.registers[register_x as usize] = value << 1;
+                self.registers[0xF] = if vf_temp == 0b10000000 { 1 } else { 0 };
+            }
+            Instruction::RightShiftRegister {
+                register_x,
+                register_y,
+            } => {
+                let value = self.registers[register_y as usize];
+                let vf_temp = value & 0b00000001;
+
+                self.registers[register_x as usize] = value >> 1;
+                self.registers[0xF] = if vf_temp == 0b00000001 { 1 } else { 0 };
+            }
+            Instruction::StoreRegisters { register_x } => {
+                for i in 0..=register_x as usize {
+                    self.memory[self.address_register as usize + i] = self.registers[i]
+                }
+
+                self.address_register += register_x as u16 + 1;
+            }
+            Instruction::LoadRegisters { register_x } => {
+                for i in 0..=register_x as usize {
+                    self.registers[i] = self.memory[self.address_register as usize + i];
+                }
+
+                self.address_register += register_x as u16 + 1;
+            }
+            Instruction::BinaryCodedDecimal { register_x } => {
+                let value = self.registers[register_x as usize];
+
+                let hundred = value / 100;
+                let ten = (value % 100) / 10;
+                let one = value % 10;
+
+                self.memory[self.address_register as usize] = hundred;
+                self.memory[self.address_register as usize + 1] = ten;
+                self.memory[self.address_register as usize + 2] = one;
+            }
+            Instruction::AddXtoI { register_x } => {
+                self.address_register += self.registers[register_x as usize] as u16;
+            }
+            Instruction::SetDelayTimer { register_x } => {
+                self.delay_timer = self.registers[register_x as usize];
+                log::trace!(target: LOG_TARGET_TIMER, "set delay timer to {}",self.delay_timer);
+            }
+            Instruction::ReadDelayTimer { register_x } => {
+                self.registers[register_x as usize] = self.delay_timer;
+            }
+            Instruction::SkipIfKey { register_x } => {
+                let key = self.registers[register_x as usize];
+
+                log::trace!(target: LOG_TARGET_INPUT, "SkipIfKey: {key:X}");
+                self.keyboard.print();
+
+                if self.keyboard.is_down(key) {
+                    self.pc += 2;
+                }
+            }
+            Instruction::SkipIfNotKey { register_x } => {
+                let key = self.registers[register_x as usize];
+
+                log::trace!(target: LOG_TARGET_INPUT, "SkipIfNotKey: {key:X}");
+                self.keyboard.print();
+
+                if !self.keyboard.is_down(key) {
+                    self.pc += 2;
+                }
+            }
+            Instruction::WaitForKey { register_x } => {
+                self.mode = Mode::WaitForKey {
+                    register: register_x,
+                };
+            }
+        }
+    }
+
     pub fn step_cycle(&mut self) -> anyhow::Result<()> {
         let instruction = self.fetch_and_decode_instruction()?;
 
-        instruction.execute_instruction(
-            &mut self.memory,
-            &mut self.registers,
-            &mut self.pc,
-            &mut self.address_register,
-            &mut self.vram,
-            &mut self.stack,
-            &mut self.delay_timer,
-            &self.keyboard,
-            &mut self.redraw,
-            &mut self.mode,
-        );
+        self.execute_instruction(instruction);
 
         Ok(())
     }
@@ -378,279 +627,6 @@ impl TryFrom<u16> for Instruction {
             (0xF, _, 0x6, 0x5) => Ok(Instruction::LoadRegisters { register_x: b }),
             (0xF, _, 0x3, 0x3) => Ok(Instruction::BinaryCodedDecimal { register_x: b }),
             _ => Err(anyhow::anyhow!("unknown instruction 0x{value:X}")),
-        }
-    }
-}
-
-impl Instruction {
-    fn execute_instruction(
-        self,
-        memory: &mut [u8],
-        registers: &mut [u8],
-        pc: &mut usize,
-        address_register: &mut u16,
-        vram: &mut [u8],
-        stack: &mut Vec<usize>,
-        delay_timer: &mut u8,
-        keyboard: &Keyboard,
-        redraw: &mut bool,
-        mode: &mut Mode,
-    ) {
-        match self {
-            Instruction::Clear => {
-                vram.fill(0);
-                *redraw = true;
-            }
-
-            Instruction::JumpToAddress { address } => {
-                *pc = address as usize;
-            }
-            Instruction::StoreNumberInRegister { number, register } => {
-                registers[register as usize] = number;
-            }
-            Instruction::SetAddressRegister { address } => *address_register = address,
-            Instruction::DrawSprite {
-                register_x,
-                register_y,
-                len,
-            } => {
-                let start_x: u16 = registers[register_x as usize] as u16;
-                let start_y: u16 = registers[register_y as usize] as u16;
-
-                let start_x = if start_x > 0x3F {
-                    start_x % DISPLAY_WIDTH
-                } else {
-                    start_x
-                };
-                let start_y = if start_y > 0x1F {
-                    start_y % DISPLAY_HEIGHT
-                } else {
-                    start_y
-                };
-
-                log::trace!(target: LOG_TARGET_DRAWING, "drawing {len} bytes at {start_x},{start_y}");
-
-                let mut x = start_x;
-                let mut y = start_y;
-
-                let lo = *address_register as usize;
-                let hi = lo + len as usize;
-                let sprite = &memory[lo..hi];
-
-                assert_eq!(sprite.len(), len as usize);
-
-                registers[0xF] = 0x00;
-
-                for row in sprite {
-                    for i in (0..8).rev() {
-                        let sprite_pixel = if row & 2_u8.pow(i) == 2_u8.pow(i) {
-                            1
-                        } else {
-                            0
-                        };
-
-                        if let Some(old_pixel) = get_pixel(vram, x, y) {
-                            let mut color = sprite_pixel;
-                            if old_pixel == 1 && sprite_pixel == 1 {
-                                registers[0xF] = 0x01;
-                                color = 0;
-                            }
-                            set_pixel(vram, x, y, color == 1);
-                        }
-
-                        x += 1;
-                    }
-
-                    y += 1;
-                    x = start_x;
-                }
-
-                log::trace!(target:LOG_TARGET_DRAWING, "Finished drawing. VF: {}", registers[0xF]);
-                print_vram(vram);
-
-                *redraw = true;
-
-                // wait_for_input();
-            }
-            Instruction::SkipIfRegisterEqTo { register, value } => {
-                if registers[register as usize] == value {
-                    *pc += 2;
-                }
-            }
-            Instruction::SkipIfRegisterNeqTo { register, value } => {
-                if registers[register as usize] != value {
-                    *pc += 2;
-                }
-            }
-            Instruction::SkipIfRegistersEq {
-                register_x,
-                register_y,
-            } => {
-                if registers[register_x as usize] == registers[register_y as usize] {
-                    *pc += 2;
-                }
-            }
-            Instruction::AddToRegister { register, value } => {
-                registers[register as usize] = registers[register as usize].wrapping_add(value);
-            }
-            Instruction::SkipIfRegistersNeq {
-                register_x,
-                register_y,
-            } => {
-                if registers[register_x as usize] != registers[register_y as usize] {
-                    *pc += 2;
-                }
-            }
-            Instruction::ExecuteSubroutine { address } => {
-                stack.push(*pc);
-                *pc = address as usize;
-            }
-            Instruction::Return => {
-                let address = stack.pop().expect("Can't return when stack is empty");
-                *pc = address as usize;
-            }
-            Instruction::CopyRegister {
-                register_x,
-                register_y,
-            } => {
-                registers[register_x as usize] = registers[register_y as usize];
-            }
-            Instruction::OrRegisters {
-                register_x,
-                register_y,
-            } => {
-                registers[register_x as usize] |= registers[register_y as usize];
-            }
-            Instruction::AndRegisters {
-                register_x,
-                register_y,
-            } => {
-                registers[register_x as usize] &= registers[register_y as usize];
-            }
-            Instruction::XorRegisters {
-                register_x,
-                register_y,
-            } => {
-                registers[register_x as usize] ^= registers[register_y as usize];
-            }
-            Instruction::AddRegisters {
-                register_x,
-                register_y,
-            } => {
-                let result: u16 =
-                    registers[register_x as usize] as u16 + registers[register_y as usize] as u16;
-
-                let carry = result > u8::MAX as u16;
-
-                registers[register_x as usize] = result as u8;
-                registers[0xF] = if carry { 0x01 } else { 0x00 };
-            }
-            Instruction::SubRegisters {
-                register_x,
-                register_y,
-            } => {
-                let x = registers[register_x as usize];
-                let y = registers[register_y as usize];
-                let result = x - y;
-
-                registers[register_x as usize] = result;
-
-                let borrow = y > x;
-                registers[0xF] = if borrow { 0x00 } else { 0x01 };
-            }
-            Instruction::SubRegistersOtherWayArround {
-                register_x,
-                register_y,
-            } => {
-                let x = registers[register_x as usize];
-                let y = registers[register_y as usize];
-                let result = y - x;
-
-                registers[register_x as usize] = result;
-
-                let borrow = x > y;
-                registers[0xF] = if borrow { 0x00 } else { 0x01 };
-            }
-            Instruction::LeftShiftRegister {
-                register_x,
-                register_y,
-            } => {
-                let value = registers[register_y as usize];
-                let vf_temp = value & 0b10000000;
-
-                registers[register_x as usize] = value << 1;
-                registers[0xF] = if vf_temp == 0b10000000 { 1 } else { 0 };
-            }
-            Instruction::RightShiftRegister {
-                register_x,
-                register_y,
-            } => {
-                let value = registers[register_y as usize];
-                let vf_temp = value & 0b00000001;
-
-                registers[register_x as usize] = value >> 1;
-                registers[0xF] = if vf_temp == 0b00000001 { 1 } else { 0 };
-            }
-            Instruction::StoreRegisters { register_x } => {
-                for i in 0..=register_x as usize {
-                    memory[*address_register as usize + i] = registers[i]
-                }
-
-                *address_register += register_x as u16 + 1;
-            }
-            Instruction::LoadRegisters { register_x } => {
-                for i in 0..=register_x as usize {
-                    registers[i] = memory[*address_register as usize + i];
-                }
-
-                *address_register += register_x as u16 + 1;
-            }
-            Instruction::BinaryCodedDecimal { register_x } => {
-                let value = registers[register_x as usize];
-
-                let hundred = value / 100;
-                let ten = (value % 100) / 10;
-                let one = value % 10;
-
-                memory[*address_register as usize] = hundred;
-                memory[*address_register as usize + 1] = ten;
-                memory[*address_register as usize + 2] = one;
-            }
-            Instruction::AddXtoI { register_x } => {
-                *address_register += registers[register_x as usize] as u16;
-            }
-            Instruction::SetDelayTimer { register_x } => {
-                *delay_timer = registers[register_x as usize];
-                log::trace!(target: LOG_TARGET_TIMER, "set delay timer to {delay_timer}");
-            }
-            Instruction::ReadDelayTimer { register_x } => {
-                registers[register_x as usize] = *delay_timer;
-            }
-            Instruction::SkipIfKey { register_x } => {
-                let key = registers[register_x as usize];
-
-                log::trace!(target: LOG_TARGET_INPUT, "SkipIfKey: {key:X}");
-                keyboard.print();
-
-                if keyboard.is_down(key) {
-                    *pc += 2;
-                }
-            }
-            Instruction::SkipIfNotKey { register_x } => {
-                let key = registers[register_x as usize];
-
-                log::trace!(target: LOG_TARGET_INPUT, "SkipIfNotKey: {key:X}");
-                keyboard.print();
-
-                if !keyboard.is_down(key) {
-                    *pc += 2;
-                }
-            }
-            Instruction::WaitForKey { register_x } => {
-                *mode = Mode::WaitForKey {
-                    register: register_x,
-                };
-            }
         }
     }
 }
