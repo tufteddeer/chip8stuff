@@ -67,7 +67,7 @@ pub enum Instruction {
         register_y: usize,
     },
     //8XY3
-    Xoregisters {
+    XorRegisters {
         register_x: usize,
         register_y: usize,
     },
@@ -192,7 +192,7 @@ impl TryFrom<u16> for Instruction {
                 register_x: x,
                 register_y: y,
             }),
-            (0x8, _, _, 0x3) => Ok(Instruction::Xoregisters {
+            (0x8, _, _, 0x3) => Ok(Instruction::XorRegisters {
                 register_x: x,
                 register_y: y,
             }),

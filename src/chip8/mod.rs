@@ -262,7 +262,7 @@ impl Chip8 {
             } => {
                 self.registers[register_x] &= self.registers[register_y];
             }
-            Instruction::Xoregisters {
+            Instruction::XorRegisters {
                 register_x,
                 register_y,
             } => {
