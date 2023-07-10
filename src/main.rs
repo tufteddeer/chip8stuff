@@ -186,7 +186,7 @@ fn main() -> anyhow::Result<()> {
                     chip8.keyboard.set_up(i as u8);
 
                     if let Mode::WaitForKey { register } = chip8.mode {
-                        chip8.registers[register as usize] = i as u8;
+                        chip8.registers[register] = i as u8;
                         chip8.mode = Mode::Running;
                     }
 

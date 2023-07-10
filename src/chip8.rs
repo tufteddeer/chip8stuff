@@ -67,7 +67,7 @@ mod test {
 #[derive(PartialEq, Eq)]
 pub enum Mode {
     Running,
-    WaitForKey { register: u8 },
+    WaitForKey { register: usize },
 }
 
 pub struct Chip8 {
@@ -144,8 +144,8 @@ impl Chip8 {
                 register_y,
                 len,
             } => {
-                let start_x: u16 = self.registers[register_x as usize] as u16;
-                let start_y: u16 = self.registers[register_y as usize] as u16;
+                let start_x: u16 = self.registers[register_x] as u16;
+                let start_y: u16 = self.registers[register_y] as u16;
 
                 let start_x = if start_x > 0x3F {
                     start_x % DISPLAY_WIDTH
@@ -216,7 +216,7 @@ impl Chip8 {
                 register_x,
                 register_y,
             } => {
-                if self.registers[register_x as usize] == self.registers[register_y as usize] {
+                if self.registers[register_x] == self.registers[register_y] {
                     self.pc += 2;
                 }
             }
@@ -228,7 +228,7 @@ impl Chip8 {
                 register_x,
                 register_y,
             } => {
-                if self.registers[register_x as usize] != self.registers[register_y as usize] {
+                if self.registers[register_x] != self.registers[register_y] {
                     self.pc += 2;
                 }
             }
@@ -244,47 +244,47 @@ impl Chip8 {
                 register_x,
                 register_y,
             } => {
-                self.registers[register_x as usize] = self.registers[register_y as usize];
+                self.registers[register_x] = self.registers[register_y];
             }
-            Instruction::OrRegisters {
+            Instruction::Oregisters {
                 register_x,
                 register_y,
             } => {
-                self.registers[register_x as usize] |= self.registers[register_y as usize];
+                self.registers[register_x] |= self.registers[register_y];
             }
             Instruction::AndRegisters {
                 register_x,
                 register_y,
             } => {
-                self.registers[register_x as usize] &= self.registers[register_y as usize];
+                self.registers[register_x] &= self.registers[register_y];
             }
-            Instruction::XorRegisters {
+            Instruction::Xoregisters {
                 register_x,
                 register_y,
             } => {
-                self.registers[register_x as usize] ^= self.registers[register_y as usize];
+                self.registers[register_x] ^= self.registers[register_y];
             }
             Instruction::AddRegisters {
                 register_x,
                 register_y,
             } => {
-                let result: u16 = self.registers[register_x as usize] as u16
-                    + self.registers[register_y as usize] as u16;
+                let result: u16 =
+                    self.registers[register_x] as u16 + self.registers[register_y] as u16;
 
                 let carry = result > u8::MAX as u16;
 
-                self.registers[register_x as usize] = result as u8;
+                self.registers[register_x] = result as u8;
                 self.registers[0xF] = if carry { 0x01 } else { 0x00 };
             }
             Instruction::SubRegisters {
                 register_x,
                 register_y,
             } => {
-                let x = self.registers[register_x as usize];
-                let y = self.registers[register_y as usize];
+                let x = self.registers[register_x];
+                let y = self.registers[register_y];
                 let result = x - y;
 
-                self.registers[register_x as usize] = result;
+                self.registers[register_x] = result;
 
                 let borrow = y > x;
                 self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
@@ -293,11 +293,11 @@ impl Chip8 {
                 register_x,
                 register_y,
             } => {
-                let x = self.registers[register_x as usize];
-                let y = self.registers[register_y as usize];
+                let x = self.registers[register_x];
+                let y = self.registers[register_y];
                 let result = y - x;
 
-                self.registers[register_x as usize] = result;
+                self.registers[register_x] = result;
 
                 let borrow = x > y;
                 self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
@@ -306,38 +306,38 @@ impl Chip8 {
                 register_x,
                 register_y,
             } => {
-                let value = self.registers[register_y as usize];
+                let value = self.registers[register_y];
                 let vf_temp = value & 0b10000000;
 
-                self.registers[register_x as usize] = value << 1;
+                self.registers[register_x] = value << 1;
                 self.registers[0xF] = if vf_temp == 0b10000000 { 1 } else { 0 };
             }
             Instruction::RightShiftRegister {
                 register_x,
                 register_y,
             } => {
-                let value = self.registers[register_y as usize];
+                let value = self.registers[register_y];
                 let vf_temp = value & 0b00000001;
 
-                self.registers[register_x as usize] = value >> 1;
+                self.registers[register_x] = value >> 1;
                 self.registers[0xF] = if vf_temp == 0b00000001 { 1 } else { 0 };
             }
             Instruction::StoreRegisters { register_x } => {
-                for i in 0..=register_x as usize {
+                for i in 0..=register_x {
                     self.memory[self.address_register as usize + i] = self.registers[i]
                 }
 
                 self.address_register += register_x as u16 + 1;
             }
             Instruction::LoadRegisters { register_x } => {
-                for i in 0..=register_x as usize {
+                for i in 0..=register_x {
                     self.registers[i] = self.memory[self.address_register as usize + i];
                 }
 
                 self.address_register += register_x as u16 + 1;
             }
             Instruction::BinaryCodedDecimal { register_x } => {
-                let value = self.registers[register_x as usize];
+                let value = self.registers[register_x];
 
                 let hundred = value / 100;
                 let ten = (value % 100) / 10;
@@ -348,17 +348,17 @@ impl Chip8 {
                 self.memory[self.address_register as usize + 2] = one;
             }
             Instruction::AddXtoI { register_x } => {
-                self.address_register += self.registers[register_x as usize] as u16;
+                self.address_register += self.registers[register_x] as u16;
             }
             Instruction::SetDelayTimer { register_x } => {
-                self.delay_timer = self.registers[register_x as usize];
+                self.delay_timer = self.registers[register_x];
                 log::trace!(target: LOG_TARGET_TIMER, "set delay timer to {}",self.delay_timer);
             }
             Instruction::ReadDelayTimer { register_x } => {
-                self.registers[register_x as usize] = self.delay_timer;
+                self.registers[register_x] = self.delay_timer;
             }
             Instruction::SkipIfKey { register_x } => {
-                let key = self.registers[register_x as usize];
+                let key = self.registers[register_x];
 
                 log::trace!(target: LOG_TARGET_INPUT, "SkipIfKey: {key:X}");
                 self.keyboard.print();
@@ -368,7 +368,7 @@ impl Chip8 {
                 }
             }
             Instruction::SkipIfNotKey { register_x } => {
-                let key = self.registers[register_x as usize];
+                let key = self.registers[register_x];
 
                 log::trace!(target: LOG_TARGET_INPUT, "SkipIfNotKey: {key:X}");
                 self.keyboard.print();
@@ -419,8 +419,8 @@ enum Instruction {
     },
     //D8B4
     DrawSprite {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
         len: u8,
     },
     //3XNN
@@ -435,8 +435,8 @@ enum Instruction {
     },
     //5XY0
     SkipIfRegistersEq {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //7XNN
     AddToRegister {
@@ -445,89 +445,89 @@ enum Instruction {
     },
     //8XY0
     CopyRegister {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XY1
-    OrRegisters {
-        register_x: u8,
-        register_y: u8,
+    Oregisters {
+        register_x: usize,
+        register_y: usize,
     },
     //8XY2
     AndRegisters {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XY3
-    XorRegisters {
-        register_x: u8,
-        register_y: u8,
+    Xoregisters {
+        register_x: usize,
+        register_y: usize,
     },
     //8XY4
     AddRegisters {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XY5
     SubRegisters {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XYE
     LeftShiftRegister {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XY6
     RightShiftRegister {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //8XY7
     SubRegistersOtherWayArround {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //9XY0
     SkipIfRegistersNeq {
-        register_x: u8,
-        register_y: u8,
+        register_x: usize,
+        register_y: usize,
     },
     //EX9E
     SkipIfKey {
-        register_x: u8,
+        register_x: usize,
     },
     //EXA1
     SkipIfNotKey {
-        register_x: u8,
+        register_x: usize,
     },
     //FX1E
     AddXtoI {
-        register_x: u8,
+        register_x: usize,
     },
     //FX33
     BinaryCodedDecimal {
-        register_x: u8,
+        register_x: usize,
     },
     //FX15
     SetDelayTimer {
-        register_x: u8,
+        register_x: usize,
     },
     //FX07
     ReadDelayTimer {
-        register_x: u8,
+        register_x: usize,
     },
     //FX0A
     WaitForKey {
-        register_x: u8,
+        register_x: usize,
     },
     //FX55
     StoreRegisters {
-        register_x: u8,
+        register_x: usize,
     },
     //FX65
     LoadRegisters {
-        register_x: u8,
+        register_x: usize,
     },
 }
 
@@ -539,6 +539,9 @@ impl TryFrom<u16> for Instruction {
         let b = ((value & 0x0F00) >> 8) as u8;
         let c = ((value & 0x00F0) >> 4) as u8;
         let d = (value & 0x000F) as u8;
+
+        let x = b as usize;
+        let y = c as usize;
 
         match (a, b, c, d) {
             (0x0, 0x0, 0xE, 0x0) => Ok(Instruction::Clear),
@@ -558,8 +561,8 @@ impl TryFrom<u16> for Instruction {
                 value: read_byte_operand(value),
             }),
             (0x5, _, _, 0) => Ok(Instruction::SkipIfRegistersEq {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x6, _, _, _) => Ok(Instruction::StoreNumberInRegister {
                 number: read_byte_operand(value),
@@ -570,62 +573,62 @@ impl TryFrom<u16> for Instruction {
                 value: read_byte_operand(value),
             }),
             (0x8, _, _, 0x0) => Ok(Instruction::CopyRegister {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
-            (0x8, _, _, 0x1) => Ok(Instruction::OrRegisters {
-                register_x: b,
-                register_y: c,
+            (0x8, _, _, 0x1) => Ok(Instruction::Oregisters {
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0x2) => Ok(Instruction::AndRegisters {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
-            (0x8, _, _, 0x3) => Ok(Instruction::XorRegisters {
-                register_x: b,
-                register_y: c,
+            (0x8, _, _, 0x3) => Ok(Instruction::Xoregisters {
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0x4) => Ok(Instruction::AddRegisters {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0x5) => Ok(Instruction::SubRegisters {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0x6) => Ok(Instruction::RightShiftRegister {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0x7) => Ok(Instruction::SubRegistersOtherWayArround {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x8, _, _, 0xE) => Ok(Instruction::LeftShiftRegister {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0x9, _, _, 0) => Ok(Instruction::SkipIfRegistersNeq {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
             }),
             (0xA, _, _, _) => Ok(Instruction::SetAddressRegister {
                 address: read_address(value),
             }),
             (0xD, _, _, _) => Ok(Instruction::DrawSprite {
-                register_x: b,
-                register_y: c,
+                register_x: x,
+                register_y: y,
                 len: d,
             }),
-            (0xE, _, 0x9, 0xE) => Ok(Instruction::SkipIfKey { register_x: b }),
-            (0xE, _, 0xA, 0x1) => Ok(Instruction::SkipIfNotKey { register_x: b }),
-            (0xF, _, 0x0, 0x7) => Ok(Instruction::ReadDelayTimer { register_x: b }),
-            (0xF, _, 0x0, 0xA) => Ok(Instruction::WaitForKey { register_x: b }),
-            (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: b }),
-            (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: b }),
-            (0xF, _, 0x5, 0x5) => Ok(Instruction::StoreRegisters { register_x: b }),
-            (0xF, _, 0x6, 0x5) => Ok(Instruction::LoadRegisters { register_x: b }),
-            (0xF, _, 0x3, 0x3) => Ok(Instruction::BinaryCodedDecimal { register_x: b }),
+            (0xE, _, 0x9, 0xE) => Ok(Instruction::SkipIfKey { register_x: x }),
+            (0xE, _, 0xA, 0x1) => Ok(Instruction::SkipIfNotKey { register_x: x }),
+            (0xF, _, 0x0, 0x7) => Ok(Instruction::ReadDelayTimer { register_x: x }),
+            (0xF, _, 0x0, 0xA) => Ok(Instruction::WaitForKey { register_x: x }),
+            (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: x }),
+            (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: x }),
+            (0xF, _, 0x5, 0x5) => Ok(Instruction::StoreRegisters { register_x: x }),
+            (0xF, _, 0x6, 0x5) => Ok(Instruction::LoadRegisters { register_x: x }),
+            (0xF, _, 0x3, 0x3) => Ok(Instruction::BinaryCodedDecimal { register_x: x }),
             _ => Err(anyhow::anyhow!("unknown instruction 0x{value:X}")),
         }
     }
