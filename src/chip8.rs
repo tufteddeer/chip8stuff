@@ -6,6 +6,8 @@ pub const DISPLAY_HEIGHT: u16 = 32;
 /// Initital program counter value and the offset at which the rom is loaded into memory
 const PC_INIT: usize = 0x200;
 
+pub const DELAY_TIMER_FREQUENCY: f32 = 60.0; // hz;
+
 pub const LOG_TARGET_INPUT: &str = "INPUT";
 pub const LOG_TARGET_INSTRUCTIONS: &str = "INSTR";
 pub const LOG_TARGET_DRAWING: &str = "DRAW";
@@ -71,6 +73,10 @@ pub struct Chip8 {
     stack: Vec<usize>,
     pub keyboard: Keyboard,
     pub delay_timer: u8,
+    /// indicates whether there was a change to the vram, indicating the screen should be
+    /// re-rendered. The rendering application has to set this back to false after rendering,
+    /// as this does not happen automatically
+    pub redraw: bool,
 }
 
 impl Chip8 {
@@ -84,6 +90,7 @@ impl Chip8 {
             stack: Vec::new(),
             keyboard: Keyboard::default(),
             delay_timer: 0,
+            redraw: false,
         }
     }
 
@@ -122,6 +129,7 @@ impl Chip8 {
             &mut self.stack,
             &mut self.delay_timer,
             &self.keyboard,
+            &mut self.redraw,
         );
 
         Ok(())
@@ -371,10 +379,12 @@ impl Instruction {
         stack: &mut Vec<usize>,
         delay_timer: &mut u8,
         keyboard: &Keyboard,
+        redraw: &mut bool,
     ) {
         match self {
             Instruction::Clear => {
                 vram.fill(0);
+                *redraw = true;
             }
 
             Instruction::JumpToAddress { address } => {
@@ -442,6 +452,8 @@ impl Instruction {
 
                 log::trace!(target:LOG_TARGET_DRAWING, "Finished drawing. VF: {}", registers[0xF]);
                 print_vram(vram);
+
+                *redraw = true;
 
                 // wait_for_input();
             }

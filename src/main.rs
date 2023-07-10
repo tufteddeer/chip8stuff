@@ -2,7 +2,10 @@
 
 mod chip8;
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use chip8::Chip8;
 use clap::Parser;
@@ -21,6 +24,13 @@ use winit_input_helper::WinitInputHelper;
 const DISPLAY_WINDOW_SCALE: u32 = 10;
 const WINDOW_WIDTH: u32 = chip8::DISPLAY_WIDTH as u32 * 10;
 const WINDOW_HEIGHT: u32 = chip8::DISPLAY_HEIGHT as u32 * 10;
+
+// Instruction cycle frequency
+const TARGET_FREQUENCY: f32 = 800.0; // hz;
+
+const LOG_TARGET_WINIT_INPUT: &str = "WINIT_INPUT";
+const LOG_TARGET_TIMING: &str = "TIMING";
+const LOG_TARGET_RENDERING: &str = "RENDER";
 
 const KEY_BINDINGS: [VirtualKeyCode; 16] = [
     VirtualKeyCode::Key0,
@@ -60,6 +70,10 @@ fn main() -> anyhow::Result<()> {
         .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, LevelFilter::Info)
         .with_module_level(chip8::LOG_TARGET_DRAWING, LevelFilter::Info)
         .with_module_level(chip8::LOG_TARGET_TIMER, LevelFilter::Info)
+        // interpreter log targets
+        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Warn)
+        .with_module_level(LOG_TARGET_TIMING, LevelFilter::Warn)
+        .with_module_level(LOG_TARGET_WINIT_INPUT, LevelFilter::Warn)
         .init()?;
 
     let args = Args::parse();
@@ -88,38 +102,56 @@ fn main() -> anyhow::Result<()> {
         Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
     };
 
-    const TARGET_FREQUENCY: f32 = 600.0; // hz;
     let time_per_instruction: Duration = Duration::from_secs_f32(1.0 / TARGET_FREQUENCY);
 
     let mut delay_timer_decrease_counter = 0;
 
-    event_loop.run(move |event, _, control_flow| {
-        let start_time = Instant::now();
+    let chip8 = Arc::new(Mutex::new(chip8));
 
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
+    std::thread::spawn({
+        let chip8 = chip8.clone();
+        move || loop {
+            let last_cycle_finished = Instant::now();
+
+            let mut chip8 = chip8.lock().unwrap();
             chip8.step_cycle().unwrap();
 
-            render_vram(&chip8.vram, &mut pixels).unwrap();
-
-            // wait for some time so we can operate at our target frequency
-            if start_time.elapsed() < time_per_instruction {
-                let time_left = time_per_instruction - start_time.elapsed();
-                if !time_left.is_zero() {
-                    std::thread::sleep(time_left);
-                }
-            }
-
-            // our chip interpreter runs at 600hz, so we decrease the 60hz timer every 10 instructions
+            // decrease the 60hz timer every x instructions, depending on our instruction execution frequency
             delay_timer_decrease_counter += 1;
-            if delay_timer_decrease_counter == 1 {
+            if delay_timer_decrease_counter
+                == (TARGET_FREQUENCY / chip8::DELAY_TIMER_FREQUENCY).floor() as i32
+            {
                 if chip8.delay_timer > 0 {
                     chip8.delay_timer -= 1;
                 }
                 delay_timer_decrease_counter = 0;
             }
 
-            window.request_redraw();
+            if chip8.redraw {
+                window.request_redraw();
+            }
+            chip8.redraw = false;
+
+            drop(chip8);
+
+            // wait for some time so we can operate at our target frequency
+            if last_cycle_finished.elapsed() < time_per_instruction {
+                let time_left = time_per_instruction - last_cycle_finished.elapsed();
+                log::trace!(target: LOG_TARGET_TIMING, "Sleeping for {time_left:?}");
+                std::thread::sleep(time_left);
+            } else {
+                log::warn!(target:LOG_TARGET_TIMING, "Instruction execution took {:?}, falling behind our target execution frequency", last_cycle_finished.elapsed());
+            }
+        }
+    });
+
+    event_loop.run(move |event, _, control_flow| {
+        let mut chip8 = chip8.lock().unwrap();
+
+        // Draw the current frame
+        if let Event::RedrawRequested(_) = event {
+            log::trace!(target: LOG_TARGET_RENDERING, "Rendering window");
+            render_vram(&chip8.vram, &mut pixels).unwrap();
         }
 
         // Handle input events
@@ -133,8 +165,10 @@ fn main() -> anyhow::Result<()> {
             KEY_BINDINGS.iter().enumerate().for_each(|(i, key)| {
                 if input.key_pressed(*key) {
                     chip8.keyboard.set_down(i as u8);
+                    log::trace!(target: LOG_TARGET_WINIT_INPUT, "key down: 0x{i:X}");
                 } else if input.key_released(*key) {
                     chip8.keyboard.set_up(i as u8);
+                    log::trace!(target: LOG_TARGET_WINIT_INPUT, "key up: 0x{i:X}");
                 }
             });
 
@@ -143,12 +177,8 @@ fn main() -> anyhow::Result<()> {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
                     log::error!("{err}");
                     *control_flow = ControlFlow::Exit;
-                    return;
                 }
             }
-
-            // Update internal state and request a redraw
-            window.request_redraw();
         }
     });
 
