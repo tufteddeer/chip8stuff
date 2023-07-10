@@ -1,10 +1,15 @@
-use std::{path::Path};
+use std::path::Path;
 
 pub const DISPLAY_WIDTH: u16 = 64;
 pub const DISPLAY_HEIGHT: u16 = 32;
 
 /// Initital program counter value and the offset at which the rom is loaded into memory
 const PC_INIT: usize = 0x200;
+
+pub const LOG_TARGET_INPUT: &str = "INPUT";
+pub const LOG_TARGET_INSTRUCTIONS: &str = "INSTR";
+pub const LOG_TARGET_DRAWING: &str = "DRAW";
+pub const LOG_TARGET_TIMER: &str = "TIMER";
 
 #[derive(Default)]
 pub struct Keyboard(u16);
@@ -28,15 +33,17 @@ impl Keyboard {
     }
 
     pub fn print(&self) {
-        print!("[");
+        let mut s = String::from("[");
         for i in 0..16 {
-            print!(" {i:X}: {}", self.is_down(i));
+            s.push_str(format!(" {i:X}: {}", self.is_down(i)).as_str());
 
             if i < 15 {
-                print!(",")
+                s.push(',');
             }
         }
-        println!(" ]");
+        s.push_str(" ]");
+
+        log::trace!(target: LOG_TARGET_INPUT, "{s}");
     }
 }
 
@@ -94,7 +101,13 @@ impl Chip8 {
 
         self.pc += 2;
 
-        Instruction::try_from(instruction)
+        let instr = Instruction::try_from(instruction);
+
+        if let Ok(i) = &instr {
+            log::trace!(target: LOG_TARGET_INSTRUCTIONS, "0x{instruction:X}: {:?}", i);
+        }
+
+        instr
     }
 
     pub fn step_cycle(&mut self) -> anyhow::Result<()> {
@@ -257,8 +270,6 @@ impl TryFrom<u16> for Instruction {
         let c = ((value & 0x00F0) >> 4) as u8;
         let d = (value & 0x000F) as u8;
 
-        println!("instruction: 0x{value:X}");
-
         match (a, b, c, d) {
             (0x0, 0x0, 0xE, 0x0) => Ok(Instruction::Clear),
             (0x0, 0x0, 0xE, 0xE) => Ok(Instruction::Return),
@@ -392,7 +403,7 @@ impl Instruction {
                     start_y
                 };
 
-                println!("drawing {len} bytes at {start_x},{start_y}");
+                log::trace!(target: LOG_TARGET_DRAWING, "drawing {len} bytes at {start_x},{start_y}");
 
                 let mut x = start_x;
                 let mut y = start_y;
@@ -429,7 +440,7 @@ impl Instruction {
                     x = start_x;
                 }
 
-                println!("Finished drawing. VF: {}", registers[0xF]);
+                log::trace!(target:LOG_TARGET_DRAWING, "Finished drawing. VF: {}", registers[0xF]);
                 print_vram(vram);
 
                 // wait_for_input();
@@ -583,7 +594,7 @@ impl Instruction {
             }
             Instruction::SetDelayTimer { register_x } => {
                 *delay_timer = registers[register_x as usize];
-                println!("set delay timer to {delay_timer}");
+                log::trace!(target: LOG_TARGET_TIMER, "set delay timer to {delay_timer}");
             }
             Instruction::ReadDelayTimer { register_x } => {
                 registers[register_x as usize] = *delay_timer;
@@ -591,7 +602,7 @@ impl Instruction {
             Instruction::SkipIfKey { register_x } => {
                 let key = registers[register_x as usize];
 
-                println!("SkipIfKey: {key:X}");
+                log::trace!(target: LOG_TARGET_INPUT, "SkipIfKey: {key:X}");
                 keyboard.print();
 
                 if keyboard.is_down(key) {
@@ -601,7 +612,7 @@ impl Instruction {
             Instruction::SkipIfNotKey { register_x } => {
                 let key = registers[register_x as usize];
 
-                println!("SkipIfNotKey {key:X}");
+                log::trace!(target: LOG_TARGET_INPUT, "SkipIfNotKey: {key:X}");
                 keyboard.print();
 
                 if !keyboard.is_down(key) {
@@ -645,16 +656,18 @@ fn read_byte_operand(instruction: u16) -> u8 {
 }
 
 fn print_vram(vram: &[u8]) {
-    println!("vram:");
+    let mut s = String::new();
 
     for y in 0..DISPLAY_HEIGHT {
         for x in 0..DISPLAY_WIDTH {
             if vram[vram_index(x, y).unwrap()] == 1 {
-                print!("□");
+                s.push('□');
             } else {
-                print!("■");
+                s.push('■');
             }
         }
-        println!();
+        s.push('\n');
     }
+
+    log::trace!(target:LOG_TARGET_DRAWING, "vram:\n{s}");
 }

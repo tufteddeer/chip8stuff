@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use chip8::Chip8;
 use clap::Parser;
+use log::LevelFilter;
 use pixels::{Error, Pixels, SurfaceTexture};
+use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -46,11 +48,27 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
+    SimpleLogger::new()
+        // dependencies
+        .with_module_level("wgpu_core", LevelFilter::Warn)
+        .with_module_level("mio", LevelFilter::Warn)
+        .with_module_level("winit", LevelFilter::Warn)
+        .with_module_level("wgpu_hal", LevelFilter::Warn)
+        .with_module_level("naga", LevelFilter::Warn)
+        // chip8 log targets
+        .with_module_level(chip8::LOG_TARGET_INPUT, LevelFilter::Info)
+        .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, LevelFilter::Info)
+        .with_module_level(chip8::LOG_TARGET_DRAWING, LevelFilter::Info)
+        .with_module_level(chip8::LOG_TARGET_TIMER, LevelFilter::Info)
+        .init()?;
+
     let args = Args::parse();
 
     let mut chip8 = Chip8::new();
 
-    chip8.load_rom(args.rom_file)?;
+    chip8.load_rom(&args.rom_file)?;
+
+    log::info!("Loaded rom file {}", args.rom_file);
 
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
@@ -123,7 +141,7 @@ fn main() -> anyhow::Result<()> {
             // Resize the window
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                    println!("{err}");
+                    log::error!("{err}");
                     *control_flow = ControlFlow::Exit;
                     return;
                 }

@@ -11,3 +11,5 @@ pixels = "0.13.0"
 winit = "0.28.6"
 winit_input_helper = "0.14.1"
 clap = { version = "4.3.11", features = ["derive"] }
+simple_logger = "4.2.0"
+log = "0.4.19"
