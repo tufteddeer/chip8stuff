@@ -94,11 +94,14 @@ fn main() -> anyhow::Result<()> {
 
             // our chip interpreter runs at 600hz, so we decrease the 60hz timer every 10 instructions
             delay_timer_decrease_counter += 1;
-            if delay_timer_decrease_counter == 10 {
-                println!("decreasing delay timer");
-                chip8.delay_timer = u8::max(0, chip8.delay_timer - 1);
+            if delay_timer_decrease_counter == 1 {
+                if chip8.delay_timer > 0 {
+                    chip8.delay_timer -= 1;
+                }
                 delay_timer_decrease_counter = 0;
             }
+
+            window.request_redraw();
         }
 
         // Handle input events
@@ -109,8 +112,6 @@ fn main() -> anyhow::Result<()> {
                 return;
             }
 
-            chip8.keyboard.reset();
-
             let down = KEY_BINDINGS
                 .iter()
                 .enumerate()
@@ -118,7 +119,15 @@ fn main() -> anyhow::Result<()> {
 
             down.for_each(|(i, _)| {
                 println!("{i}");
-                chip8.keyboard.set_down(2_u16.pow(i as u32))
+                chip8.keyboard.set_down(i as u8)
+            });
+
+            KEY_BINDINGS.iter().enumerate().for_each(|(i, key)| {
+                if input.key_pressed(*key) {
+                    chip8.keyboard.set_down(i as u8);
+                } else if input.key_released(*key) {
+                    chip8.keyboard.set_up(i as u8);
+                }
             });
 
             // Resize the window

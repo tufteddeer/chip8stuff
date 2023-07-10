@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::Path};
+use std::{path::Path};
 
 pub const DISPLAY_WIDTH: u16 = 64;
 pub const DISPLAY_HEIGHT: u16 = 32;
@@ -10,16 +10,17 @@ const PC_INIT: usize = 0x200;
 pub struct Keyboard(u16);
 
 impl Keyboard {
-    pub fn set_down(&mut self, key: u16) {
-        self.0 = self.0 | key
+    pub fn set_down(&mut self, key: u8) {
+        self.0 |= 2_u16.pow(key as u32)
     }
 
-    pub fn set_up(&mut self, key: u16) {
-        self.0 = self.0 ^ key
+    pub fn set_up(&mut self, key: u8) {
+        self.0 ^= 2_u16.pow(key as u32)
     }
 
-    pub fn is_down(&self, key: u16) -> bool {
-        self.0 & key == key
+    pub fn is_down(&self, key: u8) -> bool {
+        let v = 2_u16.pow(key as u32);
+        self.0 & v == v
     }
 
     pub fn reset(&mut self) {
@@ -29,8 +30,7 @@ impl Keyboard {
     pub fn print(&self) {
         print!("[");
         for i in 0..16 {
-            let key = 2_u16.pow(i);
-            print!(" {i:X}: {}", self.is_down(key));
+            print!(" {i:X}: {}", self.is_down(i));
 
             if i < 15 {
                 print!(",")
@@ -108,6 +108,7 @@ impl Chip8 {
             &mut self.vram,
             &mut self.stack,
             &mut self.delay_timer,
+            &self.keyboard,
         );
 
         Ok(())
@@ -212,6 +213,14 @@ enum Instruction {
     SkipIfRegistersNeq {
         register_x: u8,
         register_y: u8,
+    },
+    //EX9E
+    SkipIfKey {
+        register_x: u8,
+    },
+    //EXA1
+    SkipIfNotKey {
+        register_x: u8,
     },
     //FX1E
     AddXtoI {
@@ -327,6 +336,8 @@ impl TryFrom<u16> for Instruction {
                 register_y: c,
                 len: d,
             }),
+            (0xE, _, 0x9, 0xE) => Ok(Instruction::SkipIfKey { register_x: b }),
+            (0xE, _, 0xA, 0x1) => Ok(Instruction::SkipIfNotKey { register_x: b }),
             (0xF, _, 0x0, 0x7) => Ok(Instruction::ReadDelayTimer { register_x: b }),
             (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: b }),
             (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: b }),
@@ -348,6 +359,7 @@ impl Instruction {
         vram: &mut [u8],
         stack: &mut Vec<usize>,
         delay_timer: &mut u8,
+        keyboard: &Keyboard,
     ) {
         match self {
             Instruction::Clear => {
@@ -571,9 +583,30 @@ impl Instruction {
             }
             Instruction::SetDelayTimer { register_x } => {
                 *delay_timer = registers[register_x as usize];
+                println!("set delay timer to {delay_timer}");
             }
             Instruction::ReadDelayTimer { register_x } => {
                 registers[register_x as usize] = *delay_timer;
+            }
+            Instruction::SkipIfKey { register_x } => {
+                let key = registers[register_x as usize];
+
+                println!("SkipIfKey: {key:X}");
+                keyboard.print();
+
+                if keyboard.is_down(key) {
+                    *pc += 2;
+                }
+            }
+            Instruction::SkipIfNotKey { register_x } => {
+                let key = registers[register_x as usize];
+
+                println!("SkipIfNotKey {key:X}");
+                keyboard.print();
+
+                if !keyboard.is_down(key) {
+                    *pc += 2;
+                }
             }
         }
     }
