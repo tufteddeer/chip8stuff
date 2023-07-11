@@ -25,6 +25,8 @@ pub struct DebugGui {
     pub step_sender: std::sync::mpsc::Sender<()>,
     pub instruction_history: Vec<chip8::instructions::Instruction>,
     pub show_instruction_history_window: bool,
+    pub pc: usize,
+    pub address_register: u16,
 }
 
 impl EguiFramework {
@@ -180,12 +182,26 @@ impl DebugGui {
         egui::Window::new("Registers")
             .open(&mut self.show_registers)
             .show(ctx, |ui| {
-                egui::Grid::new("register_grid").show(ui, |ui| {
-                    for i in 0..16 {
-                        ui.label(format!("{i:X}:"));
-                        ui.label(format!("{:X}", self.registers[i]));
+                ui.group(|ui| {
+                    egui::Grid::new("register_grid").show(ui, |ui| {
+                        ui.label("PC:");
+                        ui.label(format!("{:X}", self.pc));
                         ui.end_row();
-                    }
+
+                        ui.label("I:");
+                        ui.label(format!("{:X}", self.address_register));
+                        ui.end_row();
+                    });
+                });
+
+                ui.group(|ui| {
+                    egui::Grid::new("register_grid2").show(ui, |ui| {
+                        for i in 0..16 {
+                            ui.label(format!("{i:X}:"));
+                            ui.label(format!("{:X}", self.registers[i]));
+                            ui.end_row();
+                        }
+                    });
                 });
             });
     }

@@ -78,8 +78,8 @@ pub enum Mode {
 pub struct Chip8 {
     memory: [u8; 4096],
     pub registers: [u8; 16],
-    pc: usize,
-    address_register: u16,
+    pub pc: usize,
+    pub address_register: u16,
     pub vram: [u8; DISPLAY_WIDTH as usize * DISPLAY_HEIGHT as usize],
     stack: Vec<usize>,
     pub keyboard: Keyboard,

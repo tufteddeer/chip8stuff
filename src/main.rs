@@ -214,6 +214,8 @@ fn main() -> anyhow::Result<()> {
         step_sender,
         instruction_history: Vec::new(),
         show_instruction_history_window: true,
+        pc: c.pc,
+        address_register: c.address_register,
     };
     drop(c);
 
@@ -274,6 +276,8 @@ fn main() -> anyhow::Result<()> {
                 // sync chip8 state to the debugger
                 debug_gui.chip8_mode = chip8.mode;
                 debug_gui.registers = chip8.registers;
+                debug_gui.pc = chip8.pc;
+                debug_gui.address_register = chip8.address_register;
                 drop(chip8);
 
                 framework.prepare(&window, &mut debug_gui);
