@@ -62,6 +62,9 @@ const KEY_BINDINGS: [VirtualKeyCode; 16] = [
 #[command(author, version, about, long_about = None)]
 struct Args {
     rom_file: String,
+    /// Start interpreter in paused mode
+    #[arg(short, long)]
+    paused: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -86,6 +89,10 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let mut chip8 = Chip8::new();
+
+    if args.paused {
+        chip8.mode = Mode::Paused;
+    }
 
     chip8.load_rom(&args.rom_file)?;
 
