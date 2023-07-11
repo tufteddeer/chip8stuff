@@ -185,12 +185,13 @@ impl Chip8 {
                         };
 
                         if let Some(old_pixel) = get_pixel(&self.vram, x, y) {
-                            let mut color = sprite_pixel;
-                            if old_pixel == 1 && sprite_pixel == 1 {
+                            let new_pixel = old_pixel ^ sprite_pixel;
+
+                            set_pixel(&mut self.vram, x, y, new_pixel == 1);
+
+                            if old_pixel == 1 && new_pixel == 0 {
                                 self.registers[0xF] = 0x01;
-                                color = 0;
                             }
-                            set_pixel(&mut self.vram, x, y, color == 1);
                         }
 
                         x += 1;
