@@ -148,6 +148,10 @@ impl DebugGui {
                 if ui.button("Registers").clicked() {
                     self.show_registers = !self.show_registers;
                 }
+
+                if ui.button("Instructions").clicked() {
+                    self.show_instruction_history_window = !self.show_instruction_history_window;
+                }
             });
         });
 
