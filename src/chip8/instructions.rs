@@ -101,6 +101,11 @@ pub enum Instruction {
         register_x: usize,
         register_y: usize,
     },
+    ///CXNN
+    RandomNumber {
+        register_x: usize,
+        mask: u8,
+    },
     ///EX9E
     SkipIfKey {
         register_x: usize,
@@ -229,6 +234,10 @@ impl TryFrom<u16> for Instruction {
             }),
             (0xB, _, _, _) => Ok(Instruction::JumpOffsetV0 {
                 address: read_address(value),
+            }),
+            (0xC, _, _, _) => Ok(Instruction::RandomNumber {
+                register_x: x,
+                mask: read_byte_operand(value),
             }),
             (0xD, _, _, _) => Ok(Instruction::DrawSprite {
                 register_x: x,

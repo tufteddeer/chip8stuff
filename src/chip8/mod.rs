@@ -422,6 +422,10 @@ impl Chip8 {
                 self.address_register = FONT_START as u16
                     + (FONT_BYTES_PER_CHAR as u16 * self.registers[register_x] as u16);
             }
+            Instruction::RandomNumber { register_x, mask } => {
+                let r = rand::random::<u8>() & mask;
+                self.registers[register_x] = r;
+            }
         }
     }
 
