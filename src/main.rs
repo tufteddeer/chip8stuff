@@ -4,11 +4,13 @@ mod chip8;
 mod debug_gui;
 
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use chip8::Chip8;
+use chrono::Utc;
 use clap::Parser;
 
 use log::LevelFilter;
@@ -142,6 +144,7 @@ fn main() -> anyhow::Result<()> {
     let (new_mode_sender, new_mode_receiver) = std::sync::mpsc::channel();
     let (step_sender, step_receiver) = std::sync::mpsc::channel::<()>();
     let (instructions_sender, instructions_receiver) = std::sync::mpsc::channel::<Instruction>();
+    let (dump_memory_sender, dump_memory_receiver) = std::sync::mpsc::channel::<()>();
 
     std::thread::spawn({
         let chip8 = chip8.clone();
@@ -153,6 +156,13 @@ fn main() -> anyhow::Result<()> {
 
             if let Ok(new_mode) = new_mode_receiver.try_recv() {
                 chip8.mode = new_mode;
+            }
+
+            if dump_memory_receiver.try_recv().is_ok() {
+                let p = format!("memory_dump_{}.bin", Utc::now());
+
+                std::fs::write(&p, chip8.memory).unwrap();
+                log::info!("Saved memory to {p}");
             }
 
             if chip8.mode == Mode::Running
@@ -216,6 +226,7 @@ fn main() -> anyhow::Result<()> {
         show_instruction_history_window: true,
         pc: c.pc,
         address_register: c.address_register,
+        dump_memory_sender,
     };
     drop(c);
 

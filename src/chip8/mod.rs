@@ -76,7 +76,7 @@ pub enum Mode {
 }
 
 pub struct Chip8 {
-    memory: [u8; 4096],
+    pub memory: [u8; 4096],
     pub registers: [u8; 16],
     pub pc: usize,
     pub address_register: u16,

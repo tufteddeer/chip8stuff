@@ -27,6 +27,7 @@ pub struct DebugGui {
     pub show_instruction_history_window: bool,
     pub pc: usize,
     pub address_register: u16,
+    pub dump_memory_sender: std::sync::mpsc::Sender<()>,
 }
 
 impl EguiFramework {
@@ -153,6 +154,10 @@ impl DebugGui {
 
                 if ui.button("Instructions").clicked() {
                     self.show_instruction_history_window = !self.show_instruction_history_window;
+                }
+
+                if ui.button("Memory dump").clicked() {
+                    self.dump_memory_sender.send(()).unwrap();
                 }
             });
         });
