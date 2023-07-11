@@ -5,15 +5,26 @@ pub enum Instruction {
     ///00EE
     Return,
     ///1NNN
-    JumpToAddress { address: u16 },
+    JumpToAddress {
+        address: u16,
+    },
     ///2NNN
-    ExecuteSubroutine { address: u16 },
+    ExecuteSubroutine {
+        address: u16,
+    },
     ///6XNN
-    StoreNumberInRegister { number: u8, register: u8 },
+    StoreNumberInRegister {
+        number: u8,
+        register: u8,
+    },
     ///ANNN
-    SetAddressRegister { address: u16 },
+    SetAddressRegister {
+        address: u16,
+    },
     ///BNNN
-    JumpOffsetV0 { address: u16 },
+    JumpOffsetV0 {
+        address: u16,
+    },
     ///D8B4
     DrawSprite {
         register_x: usize,
@@ -21,16 +32,25 @@ pub enum Instruction {
         len: u8,
     },
     ///3XNN
-    SkipIfRegisterEqTo { register: u8, value: u8 },
+    SkipIfRegisterEqTo {
+        register: u8,
+        value: u8,
+    },
     ///4XNN
-    SkipIfRegisterNeqTo { register: u8, value: u8 },
+    SkipIfRegisterNeqTo {
+        register: u8,
+        value: u8,
+    },
     ///5XY0
     SkipIfRegistersEq {
         register_x: usize,
         register_y: usize,
     },
     ///7XNN
-    AddToRegister { register: u8, value: u8 },
+    AddToRegister {
+        register: u8,
+        value: u8,
+    },
     ///8XY0
     CopyRegister {
         register_x: usize,
@@ -82,23 +102,45 @@ pub enum Instruction {
         register_y: usize,
     },
     ///EX9E
-    SkipIfKey { register_x: usize },
+    SkipIfKey {
+        register_x: usize,
+    },
     ///EXA1
-    SkipIfNotKey { register_x: usize },
+    SkipIfNotKey {
+        register_x: usize,
+    },
     ///FX1E
-    AddXtoI { register_x: usize },
+    AddXtoI {
+        register_x: usize,
+    },
+    //FX29
+    LoadFontCharacter {
+        register_x: usize,
+    },
     ///FX33
-    BinaryCodedDecimal { register_x: usize },
+    BinaryCodedDecimal {
+        register_x: usize,
+    },
     ///FX15
-    SetDelayTimer { register_x: usize },
+    SetDelayTimer {
+        register_x: usize,
+    },
     ///FX07
-    ReadDelayTimer { register_x: usize },
+    ReadDelayTimer {
+        register_x: usize,
+    },
     ///FX0A
-    WaitForKey { register_x: usize },
+    WaitForKey {
+        register_x: usize,
+    },
     ///FX55
-    StoreRegisters { register_x: usize },
+    StoreRegisters {
+        register_x: usize,
+    },
     ///FX65
-    LoadRegisters { register_x: usize },
+    LoadRegisters {
+        register_x: usize,
+    },
 }
 
 impl TryFrom<u16> for Instruction {
@@ -199,6 +241,7 @@ impl TryFrom<u16> for Instruction {
             (0xF, _, 0x0, 0xA) => Ok(Instruction::WaitForKey { register_x: x }),
             (0xF, _, 0x1, 0x5) => Ok(Instruction::SetDelayTimer { register_x: x }),
             (0xF, _, 0x1, 0xE) => Ok(Instruction::AddXtoI { register_x: x }),
+            (0xF, _, 0x2, 0x9) => Ok(Instruction::LoadFontCharacter { register_x: x }),
             (0xF, _, 0x5, 0x5) => Ok(Instruction::StoreRegisters { register_x: x }),
             (0xF, _, 0x6, 0x5) => Ok(Instruction::LoadRegisters { register_x: x }),
             (0xF, _, 0x3, 0x3) => Ok(Instruction::BinaryCodedDecimal { register_x: x }),

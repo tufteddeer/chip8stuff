@@ -17,6 +17,18 @@ pub const LOG_TARGET_INSTRUCTIONS: &str = "INSTR";
 pub const LOG_TARGET_DRAWING: &str = "DRAW";
 pub const LOG_TARGET_TIMER: &str = "TIMER";
 
+/// https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference#fonts
+const FONT: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0,
+    0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80,
+    0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0,
+    0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80,
+    0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80,
+];
+
+const FONT_START: usize = 0x0;
+const FONT_BYTES_PER_CHAR: usize = 5;
+
 #[derive(Default)]
 pub struct Keyboard(u16);
 
@@ -93,8 +105,14 @@ pub struct Chip8 {
 
 impl Chip8 {
     pub fn new() -> Self {
+        let mut memory = [0_u8; 4096];
+
+        for (i, data) in FONT.iter().enumerate() {
+            memory[FONT_START + i] = *data;
+        }
+
         Chip8 {
-            memory: [0_u8; 4096],
+            memory,
             registers: [0_u8; 16],
             pc: PC_INIT,
             address_register: 0,
@@ -399,6 +417,10 @@ impl Chip8 {
             }
             Instruction::JumpOffsetV0 { address } => {
                 self.pc = (address + self.registers[0x00] as u16) as usize;
+            }
+            Instruction::LoadFontCharacter { register_x } => {
+                self.address_register = FONT_START as u16
+                    + (FONT_BYTES_PER_CHAR as u16 * self.registers[register_x] as u16);
             }
         }
     }
