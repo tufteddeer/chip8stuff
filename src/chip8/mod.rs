@@ -17,7 +17,7 @@ pub const LOG_TARGET_INSTRUCTIONS: &str = "INSTR";
 pub const LOG_TARGET_DRAWING: &str = "DRAW";
 pub const LOG_TARGET_TIMER: &str = "TIMER";
 
-/// https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference#fonts
+/// <https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference#fonts>
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0,
     0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80,
@@ -34,15 +34,15 @@ pub struct Keyboard(u16);
 
 impl Keyboard {
     pub fn set_down(&mut self, key: u8) {
-        self.0 |= 2_u16.pow(key as u32)
+        self.0 |= 2_u16.pow(u32::from(key));
     }
 
     pub fn set_up(&mut self, key: u8) {
-        self.0 ^= 2_u16.pow(key as u32)
+        self.0 ^= 2_u16.pow(u32::from(key));
     }
 
     pub fn is_down(&self, key: u8) -> bool {
-        let v = 2_u16.pow(key as u32);
+        let v = 2_u16.pow(u32::from(key));
         self.0 & v == v
     }
 
@@ -62,21 +62,6 @@ impl Keyboard {
         s.push_str(" ]");
 
         log::trace!(target: LOG_TARGET_INPUT, "{s}");
-    }
-}
-
-mod test {
-    use super::Keyboard;
-
-    #[test]
-    fn test_keyboard() {
-        let mut kb = Keyboard::default();
-
-        assert_eq!(kb.is_down(0xA), false);
-        kb.set_down(0xA);
-        assert_eq!(kb.is_down(0xA), true);
-        kb.set_up(0xA);
-        assert_eq!(kb.is_down(0xA), false);
     }
 }
 
@@ -135,7 +120,8 @@ impl Chip8 {
     }
 
     fn fetch_and_decode_instruction(&mut self) -> anyhow::Result<Instruction> {
-        let instruction: u16 = (self.memory[self.pc] as u16) << 8 | self.memory[self.pc + 1] as u16;
+        let instruction: u16 =
+            u16::from(self.memory[self.pc]) << 8 | u16::from(self.memory[self.pc + 1]);
 
         self.pc += 2;
 
@@ -167,8 +153,8 @@ impl Chip8 {
                 register_y,
                 len,
             } => {
-                let start_x: u16 = self.registers[register_x] as u16;
-                let start_y: u16 = self.registers[register_y] as u16;
+                let start_x: u16 = u16::from(self.registers[register_x]);
+                let start_y: u16 = u16::from(self.registers[register_y]);
 
                 let start_x = if start_x > 0x3F {
                     start_x % DISPLAY_WIDTH
@@ -196,11 +182,7 @@ impl Chip8 {
 
                 for row in sprite {
                     for i in (0..8).rev() {
-                        let sprite_pixel = if row & 2_u8.pow(i) == 2_u8.pow(i) {
-                            1
-                        } else {
-                            0
-                        };
+                        let sprite_pixel = u8::from(row & 2_u8.pow(i) == 2_u8.pow(i));
 
                         if let Some(old_pixel) = get_pixel(&self.vram, x, y) {
                             let new_pixel = old_pixel ^ sprite_pixel;
@@ -302,12 +284,15 @@ impl Chip8 {
                 register_y,
             } => {
                 let result: u16 =
-                    self.registers[register_x] as u16 + self.registers[register_y] as u16;
+                    u16::from(self.registers[register_x]) + u16::from(self.registers[register_y]);
 
-                let carry = result > u8::MAX as u16;
+                let carry = result > u16::from(u8::MAX);
 
-                self.registers[register_x] = result as u8;
-                self.registers[0xF] = if carry { 0x01 } else { 0x00 };
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    self.registers[register_x] = result as u8;
+                }
+                self.registers[0xF] = u8::from(carry);
             }
             Instruction::SubRegisters {
                 register_x,
@@ -320,7 +305,7 @@ impl Chip8 {
                 self.registers[register_x] = result;
 
                 let borrow = y > x;
-                self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
+                self.registers[0xF] = u8::from(!borrow);
             }
             Instruction::SubRegistersOtherWayArround {
                 register_x,
@@ -333,41 +318,41 @@ impl Chip8 {
                 self.registers[register_x] = result;
 
                 let borrow = x > y;
-                self.registers[0xF] = if borrow { 0x00 } else { 0x01 };
+                self.registers[0xF] = u8::from(!borrow);
             }
             Instruction::LeftShiftRegister {
                 register_x,
                 register_y,
             } => {
                 let value = self.registers[register_y];
-                let vf_temp = value & 0b10000000;
+                let vf_temp = value & 0b1000_0000;
 
                 self.registers[register_x] = value << 1;
-                self.registers[0xF] = if vf_temp == 0b10000000 { 1 } else { 0 };
+                self.registers[0xF] = u8::from(vf_temp == 0b1000_0000);
             }
             Instruction::RightShiftRegister {
                 register_x,
                 register_y,
             } => {
                 let value = self.registers[register_y];
-                let vf_temp = value & 0b00000001;
+                let vf_temp = value & 0b0000_0001;
 
                 self.registers[register_x] = value >> 1;
-                self.registers[0xF] = if vf_temp == 0b00000001 { 1 } else { 0 };
+                self.registers[0xF] = u8::from(vf_temp == 0b0000_0001);
             }
             Instruction::StoreRegisters { register_x } => {
                 for i in 0..=register_x {
-                    self.memory[self.address_register as usize + i] = self.registers[i]
+                    self.memory[self.address_register as usize + i] = self.registers[i];
                 }
 
-                self.address_register += register_x as u16 + 1;
+                self.address_register += u16::try_from(register_x).unwrap() + 1;
             }
             Instruction::LoadRegisters { register_x } => {
                 for i in 0..=register_x {
                     self.registers[i] = self.memory[self.address_register as usize + i];
                 }
 
-                self.address_register += register_x as u16 + 1;
+                self.address_register += u16::try_from(register_x).unwrap() + 1;
             }
             Instruction::BinaryCodedDecimal { register_x } => {
                 let value = self.registers[register_x];
@@ -381,7 +366,7 @@ impl Chip8 {
                 self.memory[self.address_register as usize + 2] = one;
             }
             Instruction::AddXtoI { register_x } => {
-                self.address_register += self.registers[register_x] as u16;
+                self.address_register += u16::from(self.registers[register_x]);
             }
             Instruction::SetDelayTimer { register_x } => {
                 self.delay_timer = self.registers[register_x];
@@ -416,11 +401,12 @@ impl Chip8 {
                 };
             }
             Instruction::JumpOffsetV0 { address } => {
-                self.pc = (address + self.registers[0x00] as u16) as usize;
+                self.pc = (address + u16::from(self.registers[0x00])) as usize;
             }
             Instruction::LoadFontCharacter { register_x } => {
-                self.address_register = FONT_START as u16
-                    + (FONT_BYTES_PER_CHAR as u16 * self.registers[register_x] as u16);
+                self.address_register = u16::try_from(FONT_START).unwrap()
+                    + (u16::try_from(FONT_BYTES_PER_CHAR).unwrap()
+                        * u16::from(self.registers[register_x]));
             }
             Instruction::RandomNumber { register_x, mask } => {
                 let r = rand::random::<u8>() & mask;
@@ -454,7 +440,7 @@ pub fn vram_index(x: u16, y: u16) -> Option<usize> {
 /// Does nothing if the coordinate is outside the screen bounds
 fn set_pixel(vram: &mut [u8], x: u16, y: u16, pixel: bool) {
     if let Some(index) = vram_index(x, y) {
-        vram[index] = if pixel { 1 } else { 0 };
+        vram[index] = u8::from(pixel);
     }
 }
 

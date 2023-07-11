@@ -1,10 +1,13 @@
+#![warn(clippy::pedantic)]
+#![warn(clippy::style)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::many_single_char_names)]
 #![feature(bigint_helper_methods)]
 
 mod chip8;
 mod debug_gui;
 
 use std::{
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -243,14 +246,14 @@ fn main() -> anyhow::Result<()> {
                 let mut chip8 = chip8.lock().unwrap();
 
                 if input.key_pressed(*key) {
-                    chip8.keyboard.set_down(i as u8);
+                    chip8.keyboard.set_down(u8::try_from(i).unwrap());
 
                     log::trace!(target: LOG_TARGET_WINIT_INPUT, "key down: 0x{i:X}");
                 } else if input.key_released(*key) {
-                    chip8.keyboard.set_up(i as u8);
+                    chip8.keyboard.set_up(u8::try_from(i).unwrap());
 
                     if let Mode::WaitForKey { register } = chip8.mode {
-                        chip8.registers[register] = i as u8;
+                        chip8.registers[register] = u8::try_from(i).unwrap();
                         chip8.mode = Mode::Running;
                     }
 
@@ -311,14 +314,15 @@ fn main() -> anyhow::Result<()> {
                     })
                     .unwrap();
             }
-            Event::WindowEvent { window_id, event } => {
+            Event::WindowEvent {
+                window_id: _,
+                event,
+            } => {
                 framework.handle_event(&event);
             }
             _ => {}
         }
     });
-
-    Ok(())
 }
 
 /// Render the CHIP8 vram to the Pixels framebuffer
@@ -338,8 +342,8 @@ fn render_vram(vram: &[u8], frame: &mut [u8]) {
             // every vram pixel is scaled up
             for x in 0..DISPLAY_WINDOW_SCALE {
                 for y in 0..DISPLAY_WINDOW_SCALE {
-                    let frame_x = vram_x as u32 * DISPLAY_WINDOW_SCALE + x;
-                    let frame_y = vram_y as u32 * DISPLAY_WINDOW_SCALE + y;
+                    let frame_x = u32::from(vram_x) * DISPLAY_WINDOW_SCALE + x;
+                    let frame_y = u32::from(vram_y) * DISPLAY_WINDOW_SCALE + y;
 
                     let i = (frame_x as usize + WINDOW_WIDTH as usize * frame_y as usize) * 4;
                     frame[i] = color[0];
@@ -350,11 +354,4 @@ fn render_vram(vram: &[u8], frame: &mut [u8]) {
             }
         }
     }
-}
-
-fn wait_for_input() {
-    println!("Press enter to continue");
-    let stdin = std::io::stdin();
-    let mut inp = String::new();
-    stdin.read_line(&mut inp).expect("failed to read stdin");
 }
