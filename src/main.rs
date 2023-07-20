@@ -45,22 +45,22 @@ const LOG_TARGET_TIMING: &str = "TIMING";
 const LOG_TARGET_RENDERING: &str = "RENDER";
 
 const KEY_BINDINGS: [VirtualKeyCode; 16] = [
-    VirtualKeyCode::Key0,
-    VirtualKeyCode::Key1,
-    VirtualKeyCode::Key2,
-    VirtualKeyCode::Key3,
-    VirtualKeyCode::Key4,
-    VirtualKeyCode::Key5,
-    VirtualKeyCode::Key6,
-    VirtualKeyCode::Key7,
-    VirtualKeyCode::Key8,
-    VirtualKeyCode::Key9,
-    VirtualKeyCode::A,
-    VirtualKeyCode::B,
-    VirtualKeyCode::C,
-    VirtualKeyCode::D,
-    VirtualKeyCode::E,
-    VirtualKeyCode::F,
+    VirtualKeyCode::X,    // 0x0
+    VirtualKeyCode::Key1, // 0x1
+    VirtualKeyCode::Key2, // 0x2
+    VirtualKeyCode::Key3, // 0x3
+    VirtualKeyCode::Q,    // 0x4
+    VirtualKeyCode::W,    // 0x5
+    VirtualKeyCode::E,    // 0x6
+    VirtualKeyCode::A,    // 0x7
+    VirtualKeyCode::S,    // 0x8
+    VirtualKeyCode::D,    // 0x9
+    VirtualKeyCode::Y,    // 0xA
+    VirtualKeyCode::C,    // 0xB
+    VirtualKeyCode::Key4, // 0xC
+    VirtualKeyCode::R,    // 0xD
+    VirtualKeyCode::F,    // 0xE
+    VirtualKeyCode::V,    // 0xF
 ];
 
 #[derive(Parser, Debug)]

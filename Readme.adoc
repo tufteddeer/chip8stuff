@@ -1,0 +1,53 @@
+= chip8stuff
+:experimental:
+
+Simple interpreter to execute https://en.wikipedia.org/wiki/CHIP-8[CHIP-8] games.
+
+Passes the https://github.com/Timendus/chip8-test-suite[Timendus/chip8-test-suite] tests (except for the _display wait_ quirk).
+The sound timer and playback is not implemented yet, since I have not yet tested any rom that makes use of it.
+
+== Usage
+
+
+Pass the rom file via command line argument
+[source, shell]
+----
+./chip8stuff <ROM_FILE>
+----
+
+Use `--paused` to start the debugger in paused mode, allowing you to single-step right from the start.
+
+[source, shell]
+----
+./chip8stuff <ROM_FILE> --paused
+----
+
+== Input
+
+The original hex keypad
+[width=25%]
+|==============
+| 1 | 2 | 3 | C
+| 4 | 5 | 6 | D
+| 7 | 8 | 9 | E
+| a | 0 | B | F
+|==============
+
+is mapped to the keyboard as following:
+[width=25%]
+|==============
+| kbd:[1] | kbd:[2] | kbd:[3] | kbd:[4]
+| kbd:[Q] | kbd:[W] | kbd:[E] | kbd:[R]
+| kbd:[A] | kbd:[S] | kbd:[D] | kbd:[F]
+| kbd:[Y] | kbd:[X] | kbd:[C] | kbd:[V]
+|==============
+
+
+== Debug features
+
+- view register values
+- view executed instructions
+- pause execution/single step
+- dump memory to a file
+
+image::docs/debug_screenshot.png[]
