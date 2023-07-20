@@ -70,9 +70,20 @@ struct Args {
     /// Start interpreter in paused mode
     #[arg(short, long)]
     paused: bool,
+    /// Enable trace and debug logs
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+
+    let log_level = if args.verbose {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    };
+
     SimpleLogger::new()
         // dependencies
         .with_module_level("wgpu_core", LevelFilter::Warn)
@@ -81,17 +92,15 @@ fn main() -> anyhow::Result<()> {
         .with_module_level("wgpu_hal", LevelFilter::Warn)
         .with_module_level("naga", LevelFilter::Warn)
         // chip8 log targets
-        .with_module_level(chip8::LOG_TARGET_INPUT, LevelFilter::Info)
-        .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, LevelFilter::Trace)
-        .with_module_level(chip8::LOG_TARGET_DRAWING, LevelFilter::Info)
-        .with_module_level(chip8::LOG_TARGET_TIMER, LevelFilter::Info)
+        .with_module_level(chip8::LOG_TARGET_INPUT, log_level)
+        .with_module_level(chip8::LOG_TARGET_INSTRUCTIONS, log_level)
+        .with_module_level(chip8::LOG_TARGET_DRAWING, log_level)
+        .with_module_level(chip8::LOG_TARGET_TIMER, log_level)
         // interpreter log targets
-        .with_module_level(LOG_TARGET_RENDERING, LevelFilter::Warn)
-        .with_module_level(LOG_TARGET_TIMING, LevelFilter::Warn)
-        .with_module_level(LOG_TARGET_WINIT_INPUT, LevelFilter::Warn)
+        .with_module_level(LOG_TARGET_RENDERING, log_level)
+        .with_module_level(LOG_TARGET_TIMING, log_level)
+        .with_module_level(LOG_TARGET_WINIT_INPUT, log_level)
         .init()?;
-
-    let args = Args::parse();
 
     let mut chip8 = Chip8::new();
 
@@ -187,7 +196,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 if chip8.redraw {
-                    println!("rendering into framebuffer");
+                    log::trace!(target: LOG_TARGET_RENDERING, "rendering into framebuffer");
                     let mut f = framebuffer.lock().unwrap();
                     render_vram(&chip8.vram, &mut *f);
                 }

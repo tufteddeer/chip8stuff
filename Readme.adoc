@@ -22,6 +22,8 @@ Use `--paused` to start the debugger in paused mode, allowing you to single-step
 ./chip8stuff <ROM_FILE> --paused
 ----
 
+Use `--verbose` for detailed logging and `--help` for usage help.
+
 == Input
 
 The original hex keypad
