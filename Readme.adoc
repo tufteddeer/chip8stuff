@@ -6,6 +6,10 @@ Simple interpreter to execute https://en.wikipedia.org/wiki/CHIP-8[CHIP-8] games
 Passes the https://github.com/Timendus/chip8-test-suite[Timendus/chip8-test-suite] tests (except for the _display wait_ quirk).
 The sound timer and playback is not implemented yet, since I have not yet tested any rom that makes use of it.
 
+
+Rendering is done using the https://github.com/parasyte/pixels[Pixels] crate.
+Tested only on Linux and X11.
+
 == Usage
 
 
