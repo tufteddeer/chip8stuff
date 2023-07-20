@@ -226,7 +226,7 @@ fn main() -> anyhow::Result<()> {
         set_mode: new_mode_sender,
         step_sender,
         instruction_history: Vec::new(),
-        show_instruction_history_window: true,
+        show_instruction_history_window: false,
         pc: c.pc,
         address_register: c.address_register,
         dump_memory_sender,
