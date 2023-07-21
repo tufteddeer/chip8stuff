@@ -394,9 +394,17 @@ fn main() -> anyhow::Result<()> {
 fn load_embedded_rom(chip8: &mut Chip8) -> anyhow::Result<()> {
     let exe_path = std::env::current_exe()?;
 
-    let mut exe = File::open(&exe_path)?;
+    let mut exe = File::open(exe_path)?;
 
-    let rom_len = get_embedded_rom_length(&mut exe)?;
+    let rom_len = get_embedded_rom_length(&mut exe);
+
+    if let Err(e) = rom_len {
+        log::error!("No ROM file passed and no embedded ROM. Use --help for usage");
+        return Err(e);
+    }
+
+    let rom_len = rom_len.unwrap();
+
     log::info!("Loading {rom_len} bytes ROM included in this binary");
 
     let exe_path = std::env::current_exe()?;
