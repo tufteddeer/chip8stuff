@@ -29,7 +29,7 @@ Use `--paused` to start the debugger in paused mode, allowing you to single-step
 
 === Creating standlone executables with embedded ROM file
 
-You can use the `--embed` command to create a copy of the executable that will include the given ROM file, so it can be executed directly without depending on a separate ROM file. The ROM will be appended to the ELF executable, followed by a trailer consisting of the magic value `0xC8` and the length of the ROM as `16` (_big endian_).
+You can use the `--embed` command to create a copy of the executable that will include the given ROM file, so it can be executed directly without depending on a separate ROM file. The ROM will be appended to the ELF executable, followed by a trailer consisting of the magic value `0xC8` and the length of the ROM as `u16` (_big endian_).
 
 The new executable will be placed in the current working directory with the name `chip8stuff_<ROM_FILE>_player`
 
