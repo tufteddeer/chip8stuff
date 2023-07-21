@@ -8,7 +8,7 @@ pub const DISPLAY_WIDTH: u16 = 64;
 pub const DISPLAY_HEIGHT: u16 = 32;
 
 /// Initital program counter value and the offset at which the rom is loaded into memory
-const PC_INIT: usize = 0x200;
+pub const PC_INIT: usize = 0x200;
 
 pub const DELAY_TIMER_FREQUENCY: f32 = 60.0; // hz;
 

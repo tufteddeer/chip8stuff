@@ -2,13 +2,14 @@
 :experimental:
 
 Simple interpreter to execute https://en.wikipedia.org/wiki/CHIP-8[CHIP-8] games.
+Capable of creating standalone executables with embedded ROM files, even after compile time.
 
 Passes the https://github.com/Timendus/chip8-test-suite[Timendus/chip8-test-suite] tests (except for the _display wait_ quirk).
 The sound timer and playback is not implemented yet, since I have not yet tested any rom that makes use of it.
 
 
 Rendering is done using the https://github.com/parasyte/pixels[Pixels] crate.
-Tested only on Linux and X11.
+All features are tested only on Linux and X11.
 
 == Usage
 
@@ -26,7 +27,20 @@ Use `--paused` to start the debugger in paused mode, allowing you to single-step
 ./chip8stuff <ROM_FILE> --paused
 ----
 
-Use `--verbose` for detailed logging and `--help` for usage help.
+=== Creating standlone executables with embedded ROM file
+
+You can use the `--embed` command to create a copy of the executable that will include the given ROM file, so it can be executed directly without depending on a separate ROM file. The ROM will be appended to the ELF executable, followed by a trailer consisting of the magic value `0xC8` and the length of the ROM as `16` (_big endian_).
+
+The new executable will be placed in the current working directory with the name `chip8stuff_<ROM_FILE>_player`
+
+[source, shell]
+----
+./chip8stuff --embed <ROM_FILE>
+# run the new executable
+./chip8stuff_<ROM_FILE>_player
+----
+
+See `--verbose` for detailed logging and `--help` for usage help.
 
 == Input
 

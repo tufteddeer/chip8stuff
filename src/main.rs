@@ -8,6 +8,10 @@ mod chip8;
 mod debug_gui;
 
 use std::{
+    fs::{self, File},
+    io::{Read, Seek},
+    os::unix::prelude::FileExt,
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -44,6 +48,9 @@ const LOG_TARGET_WINIT_INPUT: &str = "WINIT_INPUT";
 const LOG_TARGET_TIMING: &str = "TIMING";
 const LOG_TARGET_RENDERING: &str = "RENDER";
 
+const EMBEDDED_ROM_TRAILER_MAGIC: u8 = 0xC8;
+const EMBEDDED_ROM_TRAILER_LEN: usize = 3;
+
 const KEY_BINDINGS: [VirtualKeyCode; 16] = [
     VirtualKeyCode::X,    // 0x0
     VirtualKeyCode::Key1, // 0x1
@@ -66,13 +73,16 @@ const KEY_BINDINGS: [VirtualKeyCode; 16] = [
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    rom_file: String,
+    rom_file: Option<String>,
     /// Start interpreter in paused mode
     #[arg(short, long)]
     paused: bool,
     /// Enable trace and debug logs
     #[arg(short, long)]
     verbose: bool,
+    /// Create a new standalone executable that includes a copy of the given ROM file
+    #[arg(long)]
+    embed: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -102,15 +112,61 @@ fn main() -> anyhow::Result<()> {
         .with_module_level(LOG_TARGET_WINIT_INPUT, log_level)
         .init()?;
 
+    if let Some(rom_file) = args.embed {
+        log::info!("Embedding {rom_file}");
+
+        let rom = std::fs::read(&rom_file)?;
+        log::info!("Got {} bytes of ROM", rom.len());
+
+        let exe_path = std::env::current_exe()?;
+
+        let p = PathBuf::from(rom_file);
+        let rom_name = p.file_name().unwrap().to_str().unwrap().clone();
+        let new_exe_name = format!("chip8stuff_{rom_name}_player");
+
+        fs::copy(exe_path, &new_exe_name)?;
+        let exe = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&new_exe_name)?;
+        let file_len = fs::metadata(&new_exe_name)?.len();
+
+        let rom_start = file_len - 1;
+        log::info!("Writing rom at 0x{:X}", rom_start);
+
+        exe.write_all_at(&rom, rom_start)?;
+        log::info!("Done");
+        log::info!("Writing trailer ");
+
+        exe.write_all_at(
+            &[
+                EMBEDDED_ROM_TRAILER_MAGIC,
+                ((rom.len() | 0xF) >> 8) as u8,
+                rom.len() as u8,
+            ],
+            file_len + rom.len() as u64,
+        )?;
+
+        log::info!("Done");
+
+        log::info!("Saved standalone player as {new_exe_name}");
+
+        return Ok(());
+    }
+
     let mut chip8 = Chip8::new();
 
     if args.paused {
         chip8.mode = Mode::Paused;
     }
 
-    chip8.load_rom(&args.rom_file)?;
-
-    log::info!("Loaded rom file {}", args.rom_file);
+    // If a file path is passed, load the rom
+    if let Some(rom_file) = args.rom_file {
+        chip8.load_rom(&rom_file)?;
+        log::info!("Loaded rom file {}", rom_file);
+    } else {
+        // if there is no rom to load, check if there is a rom embedded in the executable
+        load_embedded_rom(&mut chip8)?;
+    }
 
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
@@ -332,6 +388,49 @@ fn main() -> anyhow::Result<()> {
             _ => {}
         }
     });
+}
+
+/// Check if there is a ROM embedded in the executable and load it into CHIP8 memory
+fn load_embedded_rom(chip8: &mut Chip8) -> anyhow::Result<()> {
+    let exe_path = std::env::current_exe()?;
+
+    let mut exe = File::open(&exe_path)?;
+
+    let rom_len = get_embedded_rom_length(&mut exe)?;
+    log::info!("Loading {rom_len} bytes ROM included in this binary");
+
+    let exe_path = std::env::current_exe()?;
+
+    let meta = fs::metadata(exe_path)?;
+
+    exe.seek(std::io::SeekFrom::Start(0))?;
+    let mut exe_file = Vec::new();
+    exe.read_to_end(&mut exe_file)?;
+
+    let rom_start = usize::try_from(meta.len())? - EMBEDDED_ROM_TRAILER_LEN - (rom_len);
+
+    log::info!("Loading rom from {rom_start:X}");
+
+    chip8.memory[chip8::PC_INIT..(rom_len as usize + chip8::PC_INIT)]
+        .copy_from_slice(&exe_file[rom_start..(rom_len as usize + rom_start)]);
+
+    Ok(())
+}
+
+/// checks for the embedded rom trailer and reads the length, returning Err when there is no trailer
+fn get_embedded_rom_length(exe: &mut File) -> anyhow::Result<usize> {
+    exe.seek(std::io::SeekFrom::End(-3))?;
+
+    let mut buf = [0_u8; 3];
+    exe.read_exact(&mut buf)?;
+
+    if buf[0] != EMBEDDED_ROM_TRAILER_MAGIC {
+        return Err(anyhow::anyhow!("No ROM included in this binary"));
+    }
+
+    let rom_len = (u16::from(buf[1]) << 8) | u16::from(buf[2]);
+
+    Ok(rom_len.into())
 }
 
 /// Render the CHIP8 vram to the Pixels framebuffer
